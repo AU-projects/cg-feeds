@@ -44,16 +44,23 @@ export function defaultDescription(r, s) {
   return clean(parts.map(p => p.replace(/[.\s]+$/, '')).join('. ') + '.').slice(0, 4900);
 }
 
-// Builds the effective feed row for a record, or null when it is not eligible.
-// `o` is the output of applyRules(); `channel` is 'google' | 'meta'.
-export function feedRow(r, o, s, channel) {
+// Why a listing is left out of a feed ('' when it is included).
+export function feedStatus(r, o, s, channel) {
   s = { ...DEFAULT_SETTINGS, ...s };
-  if (String(o['exclude_' + channel]).toLowerCase() === 'true') return null;
-  if (r.status !== 'published' && !(s.includePrivate && r.status === 'private')) return null;
-  if (!s.includeOutOfStock && !(r.stock > 0)) return null;
+  if (r.status !== 'published' && !(s.includePrivate && r.status === 'private')) return 'non pubblicato';
+  if (String(o['exclude_' + channel]).toLowerCase() === 'true') return 'escluso da regola';
+  if (!s.includeOutOfStock && !(r.stock > 0)) return 'esaurito';
   const price = o.price_feed !== undefined && o.price_feed !== '' ? Number(o.price_feed) : r.price;
-  if (!(price > 0) || !r._image || !r._link) return null;
+  if (!(price > 0)) return 'prezzo zero';
+  if (!r._image || !r._link) return 'senza immagine';
+  return '';
+}
 
+// The values a listing gets in a feed, whether or not it is included.
+// `o` is the output of applyRules(); `channel` is 'google' | 'meta'.
+export function feedValues(r, o, s, channel, withDescription = true) {
+  s = { ...DEFAULT_SETTINGS, ...s };
+  const price = o.price_feed !== undefined && o.price_feed !== '' ? Number(o.price_feed) : r.price;
   const rec = { ...r, ...o };
   const inStock = r.stock > 0;
   const preorder = r.pre_order && r._available && r._available > new Date().toISOString().slice(0, 10);
@@ -68,7 +75,7 @@ export function feedRow(r, o, s, channel) {
   const row = {
     id: r.id,
     title: clean(o.title_feed ? template(o.title_feed, rec) : defaultTitle(r, s)),
-    description: clean(o.description_feed ? template(o.description_feed, rec) : defaultDescription(r, s)),
+    description: withDescription ? clean(o.description_feed ? template(o.description_feed, rec) : defaultDescription(r, s)) : '',
     availability,
     condition,
     price: money(onSale ? r.compare : price, s.currency),
@@ -82,12 +89,19 @@ export function feedRow(r, o, s, channel) {
     google_product_category: cat,
     product_type: productType,
     shipping_weight: r.weight ? r.weight + ' g' : '',
+    _price: price,
   };
   if (preorder && g) row.availability_date = r._available + 'T00:00+00:00';
   if (g) row.identifier_exists = r.gtin || r.catno ? 'yes' : 'no';
   if (!g) row.quantity_to_sell_on_facebook = Math.max(0, r.stock || 0);
   for (let i = 0; i < 5; i++) row['custom_label_' + i] = clean(o['custom_label_' + i]);
   return row;
+}
+
+// The feed row for a listing, or null when it is not eligible.
+export function feedRow(r, o, s, channel) {
+  if (feedStatus(r, o, s, channel)) return null;
+  return feedValues(r, o, s, channel, true);
 }
 
 export const GOOGLE_COLS = ['id', 'title', 'description', 'link', 'image_link', 'availability', 'availability_date', 'price', 'sale_price',

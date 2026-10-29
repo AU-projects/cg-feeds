@@ -7,6 +7,7 @@
   --bg: #f3f4f7; --surface: #ffffff; --ink: #141821; --muted: #626a7b; --line: #dde0e7;
   --accent: #3347d1; --accent-ink: #ffffff; --accent-soft: #e5e8fb; --sel: #eef0ff; --alt: #fafbfc;
   --good: #1b7f4c; --warn: #a85a0a; --bad: #bf3329; --shadow: 0 8px 30px rgba(20,24,33,.14);
+  --feed: #0b7a75; --feed-soft: #e2f2f1; --ovr: #c26a0a;
   --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
 }
@@ -15,6 +16,7 @@
     --bg: #0d1016; --surface: #151922; --ink: #e8ebf3; --muted: #8b94a7; --line: #2a303d;
     --accent: #8d9cff; --accent-ink: #0d1016; --accent-soft: #232a4e; --sel: #1d2340; --alt: #181c26;
     --good: #52c58b; --warn: #e5a04d; --bad: #f0786f; --shadow: 0 8px 30px rgba(0,0,0,.5);
+    --feed: #4fd0c4; --feed-soft: #13302f; --ovr: #f0a64a;
     color-scheme: dark;
   }
 }
@@ -22,6 +24,7 @@
   --bg: #0d1016; --surface: #151922; --ink: #e8ebf3; --muted: #8b94a7; --line: #2a303d;
   --accent: #8d9cff; --accent-ink: #0d1016; --accent-soft: #232a4e; --sel: #1d2340; --alt: #181c26;
   --good: #52c58b; --warn: #e5a04d; --bad: #f0786f; --shadow: 0 8px 30px rgba(0,0,0,.5);
+  --feed: #4fd0c4; --feed-soft: #13302f; --ovr: #f0a64a;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -70,7 +73,28 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px;
 .hd .c { cursor: pointer; user-select: none; gap: 4px; }
 .hd .c:hover { color: var(--ink); }
 .hd .sortmark { color: var(--accent); }
-.hd .c.calc { color: var(--accent); }
+.hd .c.fd { color: var(--feed); background: var(--feed-soft); }
+.fl .c.fd { background: var(--feed-soft); }
+.fl .c.fd input.on, .fl .c.fd select.on { border-color: var(--feed); background: var(--surface); }
+.c.fd.first { border-left: 2px solid var(--feed); }
+.row .c.fd { background: color-mix(in srgb, var(--feed) 7%, transparent); }
+.row.sel .c.fd { background: color-mix(in srgb, var(--feed) 12%, var(--sel)); }
+.gh { height: 24px; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
+.gh .c { padding: 0 10px; color: var(--muted); background: var(--alt); }
+.gh .c.fd { color: var(--feed); background: var(--feed-soft); }
+.c.ovr { font-weight: 600; }
+.c.ovr::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ovr); margin-right: 6px; }
+.ok { color: var(--good); font-weight: 600; }
+.no { color: var(--muted); font-size: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); align-items: center; }
+.legend i { display: inline-block; vertical-align: -1px; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; border: 1px solid var(--line); }
+.legend i.cat { background: var(--surface); }
+.legend i.feed { background: var(--feed-soft); border-color: var(--feed); }
+.legend i.ovr { width: 8px; height: 8px; border-radius: 50%; background: var(--ovr); border: 0; margin: 0 7px 0 2px; vertical-align: 0; }
+.kv dt.ovr::before, .kv dd.ovr::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ovr); margin-right: 5px; }
+.kv dd.ovr { font-weight: 600; }
+.menu .grp { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 6px 2px 2px; }
+.menu .grp.feed { color: var(--feed); }
 .fl { height: 36px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .fl .c { padding: 4px 4px; }
 .fl input, .fl select { width: 100%; padding: 3px 6px; font-size: 12.5px; height: 26px; }
@@ -80,7 +104,9 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px;
 .row { height: 30px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); font-size: 13px; }
 .row:nth-child(even) { background: var(--alt); }
 .row.sel { background: var(--sel); }
-.row .c.chk { background: inherit; }
+.row .c.chk { background: var(--surface); }
+.row:nth-child(even) .c.chk { background: var(--alt); }
+.row.sel .c.chk { background: var(--sel); }
 .tag { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 6px; margin-right: 4px; font-size: 12px; }
 .pill { border-radius: 99px; padding: 0 8px; font-size: 12px; }
 .pill.pub { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
@@ -151,6 +177,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
       <button class="btn primary" id="btnBulk">Modifica prodotti</button>
       <span class="count" id="count"></span>
     </div>
+    <div class="legend"><span><i class="cat"></i>Dal catalogo Common Ground</span><span><i class="feed"></i>Come finisce nei feed</span><span><i class="ovr"></i>Valore assegnato da una regola</span></div>
     <div class="panel help" id="help" hidden>
       Nei filtri di testo: <code>jazz</code> contiene · <code>=jazz</code> uguale · <code>!jazz</code> non contiene · <code>^jazz</code> inizia con · <code>a|b</code> uno tra · <code>=</code> vuoto · <code>!</code> non vuoto.
       Nei numeri: <code>&gt;10</code> <code>&lt;=5</code> <code>5-20</code> <code>=</code> (vuoto). Nelle date: <code>2025-06</code> oppure <code>&gt;=2025-06-01</code>.
@@ -199,6 +226,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
         <h2>Prodotti nei feed</h2>
         <div id="feedCounts" class="hint"></div>
         <div class="field"><label for="pvSearch">Anteprima di un prodotto</label><input type="search" id="pvSearch" placeholder="Cerca per titolo o artista (solo prodotti idonei)"></div>
+        <div class="legend" style="margin-bottom:8px"><span><i class="ovr"></i>Valore assegnato da una regola</span><span>Gli altri valori sono generati dal catalogo</span></div>
         <div class="cols2" id="pv"></div>
       </div>
     </div>
@@ -515,16 +543,23 @@ function defaultDescription(r, s) {
   return clean(parts.map(p => p.replace(/[.\s]+$/, '')).join('. ') + '.').slice(0, 4900);
 }
 
-// Builds the effective feed row for a record, or null when it is not eligible.
-// `o` is the output of applyRules(); `channel` is 'google' | 'meta'.
-function feedRow(r, o, s, channel) {
+// Why a listing is left out of a feed ('' when it is included).
+function feedStatus(r, o, s, channel) {
   s = { ...DEFAULT_SETTINGS, ...s };
-  if (String(o['exclude_' + channel]).toLowerCase() === 'true') return null;
-  if (r.status !== 'published' && !(s.includePrivate && r.status === 'private')) return null;
-  if (!s.includeOutOfStock && !(r.stock > 0)) return null;
+  if (r.status !== 'published' && !(s.includePrivate && r.status === 'private')) return 'non pubblicato';
+  if (String(o['exclude_' + channel]).toLowerCase() === 'true') return 'escluso da regola';
+  if (!s.includeOutOfStock && !(r.stock > 0)) return 'esaurito';
   const price = o.price_feed !== undefined && o.price_feed !== '' ? Number(o.price_feed) : r.price;
-  if (!(price > 0) || !r._image || !r._link) return null;
+  if (!(price > 0)) return 'prezzo zero';
+  if (!r._image || !r._link) return 'senza immagine';
+  return '';
+}
 
+// The values a listing gets in a feed, whether or not it is included.
+// `o` is the output of applyRules(); `channel` is 'google' | 'meta'.
+function feedValues(r, o, s, channel, withDescription = true) {
+  s = { ...DEFAULT_SETTINGS, ...s };
+  const price = o.price_feed !== undefined && o.price_feed !== '' ? Number(o.price_feed) : r.price;
   const rec = { ...r, ...o };
   const inStock = r.stock > 0;
   const preorder = r.pre_order && r._available && r._available > new Date().toISOString().slice(0, 10);
@@ -539,7 +574,7 @@ function feedRow(r, o, s, channel) {
   const row = {
     id: r.id,
     title: clean(o.title_feed ? template(o.title_feed, rec) : defaultTitle(r, s)),
-    description: clean(o.description_feed ? template(o.description_feed, rec) : defaultDescription(r, s)),
+    description: withDescription ? clean(o.description_feed ? template(o.description_feed, rec) : defaultDescription(r, s)) : '',
     availability,
     condition,
     price: money(onSale ? r.compare : price, s.currency),
@@ -553,12 +588,19 @@ function feedRow(r, o, s, channel) {
     google_product_category: cat,
     product_type: productType,
     shipping_weight: r.weight ? r.weight + ' g' : '',
+    _price: price,
   };
   if (preorder && g) row.availability_date = r._available + 'T00:00+00:00';
   if (g) row.identifier_exists = r.gtin || r.catno ? 'yes' : 'no';
   if (!g) row.quantity_to_sell_on_facebook = Math.max(0, r.stock || 0);
   for (let i = 0; i < 5; i++) row['custom_label_' + i] = clean(o['custom_label_' + i]);
   return row;
+}
+
+// The feed row for a listing, or null when it is not eligible.
+function feedRow(r, o, s, channel) {
+  if (feedStatus(r, o, s, channel)) return null;
+  return feedValues(r, o, s, channel, true);
 }
 
 const GOOGLE_COLS = ['id', 'title', 'description', 'link', 'image_link', 'availability', 'availability_date', 'price', 'sale_price',
@@ -591,17 +633,29 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&am
 const nf = new Intl.NumberFormat('it-IT');
 const pf = new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const ROW_H = 30;
-const CALC = [{ key: 'tags', label: 'Tag', type: 'text', w: 160, calc: true }, ...CUSTOM_LABELS.map((k, i) => ({ key: k, label: 'Label ' + i, type: 'text', w: 120, calc: true }))];
-const ALLCOLS = [...COLUMNS, ...CALC];
+const FEEDCOLS = [
+  { key: 'f_google', label: 'In feed Google', type: 'text', enum: true, w: 130, ovr: 'exclude_google' },
+  { key: 'f_meta', label: 'In feed Meta', type: 'text', enum: true, w: 120, ovr: 'exclude_meta' },
+  { key: 'f_title', label: 'Titolo nel feed', type: 'text', w: 300, ovr: 'title_feed' },
+  { key: 'f_brand', label: 'Brand', type: 'text', w: 150, ovr: 'brand' },
+  { key: 'f_condition', label: 'Condizione', type: 'text', enum: true, w: 100, ovr: 'condition_feed' },
+  { key: 'f_price', label: 'Prezzo nel feed', type: 'num', w: 110, ovr: 'price_feed' },
+  { key: 'f_avail', label: 'Disponibilità', type: 'text', enum: true, w: 110 },
+  { key: 'f_cat', label: 'Google category', type: 'text', w: 210, ovr: 'google_category' },
+  { key: 'f_ptype', label: 'Product type', type: 'text', w: 160, ovr: 'product_type_feed' },
+  ...CUSTOM_LABELS.map((k, i) => ({ key: k, label: 'Custom label ' + i, type: 'text', w: 130, ovr: k, rule: true })),
+  { key: 'tags', label: 'Tag (solo app)', type: 'text', w: 170, ovr: 'tags', rule: true },
+].map(c => ({ ...c, feed: true }));
+const ALLCOLS = [...COLUMNS, ...FEEDCOLS];
 const COLBY = Object.fromEntries(ALLCOLS.map(c => [c.key, c]));
-const DEFAULT_VISIBLE = ['title', 'artist', 'label', 'year', 'genre', 'format', 'media', 'sleeve', 'price', 'stock', 'status', 'supplier', 'location', 'tags', 'custom_label_0'];
+const DEFAULT_VISIBLE = ['title', 'artist', 'genre', 'media', 'sleeve', 'price', 'stock', 'f_google', 'f_meta', 'custom_label_0', 'tags'];
 
 const S = {
   recs: [], view: [], filters: {}, q: '', sort: null, sel: new Set(), visible: new Set(DEFAULT_VISIBLE),
   rules: [], settings: { ...DEFAULT_SETTINGS, feedBase: 'https://au-projects.github.io/cg-feeds/' }, meta: null,
   db: null, facets: {}, calc: [], editing: null,
 };
-try { const v = JSON.parse(localStorage.getItem('fh.cols') || 'null'); if (Array.isArray(v) && v.length) S.visible = new Set(v); } catch (e) {}
+try { const v = JSON.parse(localStorage.getItem('fh.cols3') || 'null'); if (Array.isArray(v) && v.length) S.visible = new Set(v); } catch (e) {}
 
 function toast(msg) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
@@ -644,7 +698,7 @@ async function load() {
 }
 
 function buildFacets() {
-  for (const c of COLUMNS.filter(c => c.enum)) {
+  for (const c of ALLCOLS.filter(c => c.enum)) {
     const m = new Map();
     for (const r of S.recs) { const v = r[c.key] || ''; m.set(v, (m.get(v) || 0) + 1); }
     S.facets[c.key] = [...m.entries()].sort((a, b) => b[1] - a[1]);
@@ -655,14 +709,22 @@ function activeRules() { return sortRules(S.rules); }
 let rcT = 0;
 function scheduleRecompute() { clearTimeout(rcT); rcT = setTimeout(recompute, 120); }
 
+const AVAIL = { in_stock: 'disponibile', out_of_stock: 'esaurito', preorder: 'preordine' };
 function recompute() {
-  const rules = activeRules();
+  const rules = activeRules(), st = S.settings;
   for (const r of S.recs) {
     const o = rules.length ? applyRules(r, rules) : {};
+    r.$o = o;
     r.tags = (o.tags || []).join(', ');
     for (const k of CUSTOM_LABELS) r[k] = o[k] || '';
+    const f = feedValues(r, o, st, 'google', false);
+    r.f_title = f.title; r.f_brand = f.brand; r.f_condition = f.condition; r.f_price = f._price;
+    r.f_avail = AVAIL[f.availability] || f.availability; r.f_cat = f.google_product_category; r.f_ptype = f.product_type;
+    r.f_google = feedStatus(r, o, st, 'google') || '✓';
+    r.f_meta = feedStatus(r, o, st, 'meta') || '✓';
   }
-  applyFilters();
+  buildFacets();
+  applyFilters(true);
 }
 
 /* ---------- filters ---------- */
@@ -744,25 +806,31 @@ function renderHead() {
   const cs = cols();
   const w = totalW();
   const allSel = S.view.length && S.view.every(i => S.sel.has(S.recs[i].id));
-  const head = `<div class="r hd" style="width:${w}px"><div class="c chk"><input type="checkbox" id="selAll" aria-label="Seleziona tutti i filtrati" ${allSel ? 'checked' : ''}></div>${cs.map(c => {
+  const nCat = cs.filter(c => !c.feed).reduce((a, c) => a + c.w, 0), nFeed = cs.filter(c => c.feed).reduce((a, c) => a + c.w, 0);
+  const band = `<div class="r gh" style="width:${w}px"><div class="c chk"></div>${nCat ? `<div class="c" style="width:${nCat}px">Dal catalogo</div>` : ''}${nFeed ? `<div class="c fd first" style="width:${nFeed}px">Nel feed</div>` : ''}</div>`;
+  const ff = cs.findIndex(c => c.feed);
+  const cc = (c, i) => (c.feed ? 'fd' : '') + (i === ff ? ' first' : '');
+  const head = `<div class="r hd" style="width:${w}px"><div class="c chk"><input type="checkbox" id="selAll" aria-label="Seleziona tutti i filtrati" ${allSel ? 'checked' : ''}></div>${cs.map((c, i) => {
     const m = S.sort && S.sort.key === c.key ? `<span class="sortmark">${S.sort.dir > 0 ? '▲' : '▼'}</span>` : '';
-    return `<div class="c ${c.type === 'num' ? 'num' : ''} ${c.calc ? 'calc' : ''}" style="width:${c.w}px" data-sort="${c.key}" title="Ordina per ${esc(c.label)}">${esc(c.label)} ${m}</div>`;
+    return `<div class="c ${c.type === 'num' ? 'num' : ''} ${cc(c, i)}" style="width:${c.w}px" data-sort="${c.key}" title="Ordina per ${esc(c.label)}">${esc(c.label)} ${m}</div>`;
   }).join('')}</div>`;
-  const fl = `<div class="r fl" style="width:${w}px"><div class="c chk"></div>${cs.map(c => {
+  const fl = `<div class="r fl" style="width:${w}px"><div class="c chk"></div>${cs.map((c, i) => {
     const v = S.filters[c.key] || '';
     let inner;
     if (c.type === 'bool') inner = `<select data-f="${c.key}" class="${v ? 'on' : ''}"><option value="">Tutti</option><option value="true" ${v === 'true' ? 'selected' : ''}>Sì</option><option value="false" ${v === 'false' ? 'selected' : ''}>No</option></select>`;
     else if (c.enum) inner = `<select data-f="${c.key}" class="${v ? 'on' : ''}"><option value="">Tutti</option><option value="\u0000" ${v === '\u0000' ? 'selected' : ''}>(vuoto)</option>${(S.facets[c.key] || []).filter(([x]) => x !== '').slice(0, 400).map(([x, n]) => `<option value="${esc(x)}" ${v === x ? 'selected' : ''}>${esc(x)} (${nf.format(n)})</option>`).join('')}</select>`;
     else inner = `<input type="text" data-f="${c.key}" value="${esc(v)}" class="${v ? 'on' : ''}" placeholder="filtra" aria-label="Filtro ${esc(c.label)}">`;
-    return `<div class="c" style="width:${c.w}px">${inner}</div>`;
+    return `<div class="c ${cc(c, i)}" style="width:${c.w}px">${inner}</div>`;
   }).join('')}</div>`;
-  $('ghead').innerHTML = head + fl;
+  $('ghead').innerHTML = band + head + fl;
   $('ghead').style.width = w + 'px';
 }
 
 function cell(c, r) {
   const v = r[c.key];
   if (c.key === 'status') return `<span class="pill ${v === 'published' ? 'pub' : 'prv'}">${v === 'published' ? 'pubblicato' : esc(v)}</span>`;
+  if (c.key === 'f_google' || c.key === 'f_meta') return v === '✓' ? '<span class="ok">✓</span>' : `<span class="no">${esc(v)}</span>`;
+  if (c.key === 'f_price') return v == null ? '' : pf.format(v);
   if (c.key === 'tags') return v ? v.split(', ').map(t => `<span class="tag">${esc(t)}</span>`).join('') : '';
   if (c.type === 'bool') return v ? 'Sì' : '<span class="muted">·</span>';
   if (v == null || v === '') return '';
@@ -788,11 +856,13 @@ function renderRows() {
     const cnt = Math.ceil(g.clientHeight / ROW_H) + 14;
     const end = Math.min(n, start + cnt);
     const cs = cols();
+    const ff = cs.findIndex(c => c.feed);
+    const isOvr = (c, r) => { if (!c.ovr) return false; const v = (r.$o || {})[c.ovr]; return c.ovr.startsWith('exclude_') ? String(v).toLowerCase() === 'true' : v !== undefined && v !== '' && !(Array.isArray(v) && !v.length); };
     let h = '';
     for (let k = start; k < end; k++) {
       const r = S.recs[S.view[k]];
       const sel = S.sel.has(r.id);
-      h += `<div class="r row ${sel ? 'sel' : ''}" data-id="${esc(r.id)}" style="width:${totalW()}px"><div class="c chk"><input type="checkbox" data-sel="${esc(r.id)}" ${sel ? 'checked' : ''} aria-label="Seleziona"></div>${cs.map(c => `<div class="c ${c.type === 'num' ? 'num' : ''}" style="width:${c.w}px" ${c.key !== 'tags' && r[c.key] ? `title="${esc(r[c.key])}"` : ''}>${cell(c, r)}</div>`).join('')}</div>`;
+      h += `<div class="r row ${sel ? 'sel' : ''}" data-id="${esc(r.id)}" style="width:${totalW()}px"><div class="c chk"><input type="checkbox" data-sel="${esc(r.id)}" ${sel ? 'checked' : ''} aria-label="Seleziona"></div>${cs.map((c, i) => `<div class="c ${c.type === 'num' ? 'num' : ''} ${c.feed ? 'fd' : ''}${i === ff ? ' first' : ''}${isOvr(c, r) ? ' ovr' : ''}" style="width:${c.w}px" ${c.key !== 'tags' && r[c.key] ? `title="${esc(r[c.key])}"` : ''}>${cell(c, r)}</div>`).join('')}</div>`;
     }
     $('win').style.transform = `translateY(${start * ROW_H}px)`;
     $('win').innerHTML = h;
@@ -860,11 +930,12 @@ $('btnCols').addEventListener('click', e => {
   const m = document.createElement('div'); m.className = 'menu';
   const r = btn.getBoundingClientRect();
   m.style.left = Math.max(8, Math.min(r.left + scrollX, innerWidth - 230)) + 'px'; m.style.top = (r.bottom + scrollY + 6) + 'px';
-  m.innerHTML = ALLCOLS.map(c => `<label class="check" style="margin:0"><input type="checkbox" data-col="${c.key}" ${S.visible.has(c.key) ? 'checked' : ''}> ${esc(c.label)}${c.calc ? ' <span class="muted">(regole)</span>' : ''}</label>`).join('');
+  const item = c => `<label class="check" style="margin:0"><input type="checkbox" data-col="${c.key}" ${S.visible.has(c.key) ? 'checked' : ''}> ${esc(c.label)}</label>`;
+  m.innerHTML = '<div class="grp">Dal catalogo</div>' + COLUMNS.map(item).join('') + '<div class="grp feed">Nel feed</div>' + FEEDCOLS.map(item).join('');
   m.addEventListener('change', ev => {
     const k = ev.target.dataset.col; if (!k) return;
     if (ev.target.checked) S.visible.add(k); else S.visible.delete(k);
-    try { localStorage.setItem('fh.cols', JSON.stringify([...S.visible])); } catch (x) {}
+    try { localStorage.setItem('fh.cols3', JSON.stringify([...S.visible])); } catch (x) {}
     renderHead(); renderRows();
   });
   host.replaceChildren(m);
@@ -882,7 +953,7 @@ $('btnExport').addEventListener('click', async () => {
 });
 
 /* ---------- rules drawer ---------- */
-const FIELD_OPTS = ALLCOLS.map(c => `<option value="${c.key}">${esc(c.label)}${c.calc ? ' (da automazioni sopra)' : ''}</option>`).join('');
+const FIELD_OPTS = [...COLUMNS, ...FEEDCOLS.filter(c => c.rule)].map(c => `<option value="${c.key}">${esc(c.label)}${c.rule ? ' (da automazioni sopra)' : ''}</option>`).join('');
 const OP_OPTS = OPS.map(o => `<option value="${o.key}">${esc(o.label)}</option>`).join('');
 const ACT_OPTS = ACTION_FIELDS.map(a => `<option value="${a.key}">${esc(a.label)}</option>`).join('');
 
@@ -1031,12 +1102,21 @@ async function patchRule(r, patch) { await saveRule(r.id, { ...stripId(r), ...pa
 const stripId = r => { const { id, ...rest } = r; return rest; };
 
 /* bulk edit from the catalog */
+function confirm_(label) {
+  toast(`Il filtro «${label}» è un risultato del feed e non può diventare una condizione. Toglilo o usa le colonne del catalogo.`);
+  return false;
+}
 $('btnBulk').addEventListener('click', () => {
   const selection = S.sel.size > 0;
   let conds = currentConds();
   const q = S.q.trim();
   if (q) conds = [...conds, ...q.split(/\s+/).map(t => ({ field: 'title', op: 'contains', value: t }))];
   if (!selection && !S.view.length) { toast('Nessun prodotto con questi filtri.'); return; }
+  const feedOnly = Object.keys(S.filters).filter(k => S.filters[k] && COLBY[k] && COLBY[k].feed && !COLBY[k].rule);
+  if (feedOnly.length) {
+    if (!confirm_(COLBY[feedOnly[0]].label)) return;
+    conds = conds.filter(c => !feedOnly.includes(c.field));
+  }
   openDrawer({ name: '', conditions: selection ? [] : conds, actions: [{ field: 'custom_label_0', value: '' }] }, { from: 'catalog', selection });
 });
 $('btnNewRule').addEventListener('click', () => openDrawer({ name: '', conditions: [], actions: [{ field: 'custom_label_0', value: '' }] }, { from: 'rules' }));
@@ -1119,7 +1199,7 @@ function bindSetting(id, key, kind) {
   const el = $(id);
   el.addEventListener(kind === 'check' ? 'change' : 'input', () => {
     S.settings[key] = kind === 'check' ? el.checked : el.value;
-    saveSettings(); renderFeed(true);
+    saveSettings(); renderFeed(true); scheduleRecompute();
   });
 }
 [['sCur', 'currency'], ['sLang', 'lang'], ['sCatRel', 'googleCategoryRelease'], ['sCatBook', 'googleCategoryBook'], ['sCatProd', 'googleCategoryProduct'], ['feedBase', 'feedBase']].forEach(([i, k]) => bindSetting(i, k));
@@ -1155,9 +1235,14 @@ function drawFeedCounts() {
     if ((a || b) && sample.length < 2 && (!q || r.$s.includes(q))) sample.push([a, b, o]);
   }
   $('feedCounts').innerHTML = `Google: <b>${nf.format(g)}</b> prodotti · Meta: <b>${nf.format(m)}</b> prodotti. Esauriti ${S.settings.includeOutOfStock ? 'inclusi' : 'esclusi'}: ${nf.format(oos)}. Esclusi da regola: Google ${nf.format(eg)}, Meta ${nf.format(em)}.`;
-  const kv = row => row ? `<dl class="kv">${Object.entries(row).filter(([, v]) => v !== '' && v != null).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : '<span class="muted">Nessun prodotto</span>';
+  const OVR = { title: 'title_feed', description: 'description_feed', brand: 'brand', condition: 'condition_feed', price: 'price_feed', google_product_category: 'google_category', product_type: 'product_type_feed' };
+  const kv = (row, o) => row ? `<dl class="kv">${Object.entries(row).filter(([k, v]) => v !== '' && v != null && k[0] !== '_').map(([k, v]) => {
+    const key = OVR[k] || (k.startsWith('custom_label_') ? k : '');
+    const on = key && o && o[key] !== undefined && o[key] !== '';
+    return `<dt class="${on ? 'ovr' : ''}">${esc(k)}</dt><dd class="${on ? 'ovr' : ''}">${esc(v)}</dd>`;
+  }).join('')}</dl>` : '<span class="muted">Nessun prodotto</span>';
   const first = sample[0];
-  $('pv').innerHTML = first ? `<div class="panel" style="background:var(--bg)"><h2>Riga Google</h2>${kv(first[0])}</div><div class="panel" style="background:var(--bg)"><h2>Riga Meta</h2>${kv(first[1])}</div>` : '<div class="muted">Nessun prodotto idoneo con questa ricerca.</div>';
+  $('pv').innerHTML = first ? `<div class="panel" style="background:var(--bg)"><h2>Riga Google</h2>${kv(first[0], first[2])}</div><div class="panel" style="background:var(--bg)"><h2>Riga Meta</h2>${kv(first[1], first[2])}</div>` : '<div class="muted">Nessun prodotto idoneo con questa ricerca.</div>';
 }
 $('pvSearch').addEventListener('input', () => { clearTimeout(pvTimer); pvTimer = setTimeout(drawFeedCounts, 250); });
 
@@ -1172,7 +1257,7 @@ async function connectDb() {
     scheduleRecompute(); if ($('v-regole').classList.contains('on')) renderRules(); if ($('v-feed').classList.contains('on')) renderFeed(true);
   }, () => {});
   db.doc('settings/main').onSnapshot(d => {
-    if (d.exists) { S.settings = { ...S.settings, ...d.data() }; if ($('v-feed').classList.contains('on')) renderFeed(true); }
+    if (d.exists) { S.settings = { ...S.settings, ...d.data() }; scheduleRecompute(); if ($('v-feed').classList.contains('on')) renderFeed(true); }
   }, () => {});
 }
 
