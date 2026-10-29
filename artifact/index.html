@@ -28,6 +28,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body { background: var(--bg); color: var(--ink); font: 14px/1.4 var(--sans); padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 12px; padding-block: 12px; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -93,6 +94,12 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px;
 .legend i.ovr { width: 8px; height: 8px; border-radius: 50%; background: var(--ovr); border: 0; margin: 0 7px 0 2px; vertical-align: 0; }
 .kv dt.ovr::before, .kv dd.ovr::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ovr); margin-right: 5px; }
 .kv dd.ovr { font-weight: 600; }
+.sched-card { background: var(--bg); display: grid; gap: 10px; align-content: start; }
+.sched-card h3 { margin: 0; font-size: 14px; }
+.days { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.days label { display: flex; gap: 5px; align-items: center; font-size: 13px; }
+.row2 { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.err { color: var(--bad); font-size: 12.5px; }
 .menu .grp { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 6px 2px 2px; }
 .menu .grp.feed { color: var(--feed); }
 .fl { height: 36px; border-bottom: 1px solid var(--line); background: var(--surface); }
@@ -200,6 +207,11 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
 
   <section class="view" id="v-feed">
     <div class="scroll">
+      <div class="panel" id="sched">
+        <h2>Pianificazione</h2>
+        <div class="hint" id="schedNote">Orari in ora italiana. Ogni esecuzione usa una sessione di Claude, quindi l’intervallo minimo è un’ora. Meglio evitare i minuti :00 e :30, dove i ritardi sono più frequenti.</div>
+        <div class="cols2" id="schedCards"></div>
+      </div>
       <div class="cols2">
         <div class="panel">
           <h2>Link dei feed</h2>
@@ -207,7 +219,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
           <div class="urlbox"><span class="lbl" style="width:52px">Google</span><input type="text" id="uGoogle" readonly><button class="btn sm" data-copy="uGoogle">Copia</button></div>
           <div class="urlbox"><span class="lbl" style="width:52px">Meta</span><input type="text" id="uMeta" readonly><button class="btn sm" data-copy="uMeta">Copia</button></div>
           <div class="field"><label for="feedBase">Indirizzo base dei feed</label><input type="text" id="feedBase"></div>
-          <div class="hint">I file si aggiornano ogni notte con il catalogo e le regole salvate qui. Per aggiornarli subito, scrivi a Claude «aggiorna i feed».</div>
+          <div class="hint">I file si aggiornano agli orari della pianificazione qui sopra, con l’ultimo catalogo importato e le automazioni salvate. Per aggiornarli subito premi «Esegui ora» su «Aggiorna i feed al link».</div>
           <dl class="kv" id="genInfo"></dl>
         </div>
         <div class="panel">
@@ -676,7 +688,7 @@ function route() {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + name));
   document.querySelectorAll('nav a').forEach(a => a.setAttribute('aria-current', a.dataset.view === name ? 'page' : 'false'));
   if (name === 'regole') renderRules();
-  if (name === 'feed') renderFeed();
+  if (name === 'feed') { renderFeed(); if (typeof loadSched === 'function') loadSched(); }
   if (name === 'catalogo') renderRows();
 }
 addEventListener('hashchange', route);
@@ -1270,6 +1282,146 @@ function drawFeedCounts() {
   $('pv').innerHTML = first ? `<div class="panel" style="background:var(--bg)"><h2>Riga Google</h2>${kv(first[0], first[2])}</div><div class="panel" style="background:var(--bg)"><h2>Riga Meta</h2>${kv(first[1], first[2])}</div>` : '<div class="muted">Nessun prodotto idoneo con questa ricerca.</div>';
 }
 $('pvSearch').addEventListener('input', () => { clearTimeout(pvTimer); pvTimer = setTimeout(drawFeedCounts, 250); });
+
+
+/* ---------- schedule (Claude scheduled tasks, via the Claude Code Remote connector) ---------- */
+const CONNECTOR = 'Claude Code Remote';
+const JOBS = [
+  { key: 'import', id: 'trig_014gz3diZf2swzso8nEWUVvH', title: 'Importa il catalogo da Common Ground', desc: 'Scarica il catalogo aggiornato e rinnova la tabella di questa app. Non modifica i feed pubblici.' },
+  { key: 'feed', id: 'trig_01A26ENQb24gPLm6aXXYgTDH', title: 'Aggiorna i feed al link', desc: 'Applica le automazioni all’ultimo catalogo importato e pubblica google.tsv e meta.csv.' },
+];
+const FREQS = [['h1', 'Ogni ora'], ['h2', 'Ogni 2 ore'], ['h3', 'Ogni 3 ore'], ['h4', 'Ogni 4 ore'], ['h6', 'Ogni 6 ore'], ['h12', 'Ogni 12 ore'], ['daily', 'Ogni giorno'], ['days', 'Nei giorni scelti']];
+const DAYNAMES = [[1, 'Lun'], [2, 'Mar'], [3, 'Mer'], [4, 'Gio'], [5, 'Ven'], [6, 'Sab'], [0, 'Dom']];
+const TZ = 'CRON_TZ=Europe/Rome';
+const fmtRome = iso => iso ? new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) : '–';
+S.sched = {}; let mcpNs; let mcpTried = false;
+
+function parseCron(cron) {
+  const c = String(cron || '').replace(/^CRON_TZ=\S+\s+/, '').trim().split(/\s+/);
+  const ui = { mode: 'custom', time: '03:17', days: [1, 2, 3, 4, 5, 6, 0], raw: cron };
+  if (c.length !== 5) return ui;
+  const [m, h, dom, mon, dow] = c;
+  if (dom !== '*' || mon !== '*') return ui;
+  let r;
+  if (h === '*' && dow === '*') { ui.mode = 'h1'; return ui; }
+  if ((r = h.match(/^\*\/(\d+)$/)) && dow === '*' && ['2', '3', '4', '6', '12'].includes(r[1])) { ui.mode = 'h' + r[1]; return ui; }
+  if (/^\d+$/.test(h) && /^\d+$/.test(m)) {
+    ui.time = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+    if (dow === '*') { ui.mode = 'daily'; return ui; }
+    const days = new Set();
+    for (const part of dow.split(',')) {
+      const rg = part.match(/^(\d)-(\d)$/);
+      if (rg) for (let d = +rg[1]; d <= +rg[2]; d++) days.add(d % 7);
+      else if (/^\d$/.test(part)) days.add(+part % 7);
+      else return ui;
+    }
+    ui.mode = 'days'; ui.days = [...days]; return ui;
+  }
+  return ui;
+}
+function buildCron(ui) {
+  if (/^h\d+$/.test(ui.mode)) { const n = +ui.mode.slice(1); return n === 1 ? `${TZ} 0 * * * *`: `${TZ} 0 */${n} * * *`; }
+  const [h, m] = ui.time.split(':').map(Number);
+  if (ui.mode === 'daily') return `${TZ} ${m} ${h} * * *`;
+  if (ui.mode === 'days') return `${TZ} ${m} ${h} * * ${[...ui.days].sort((a, b) => a - b).join(',')}`;
+  return null;
+}
+function mcpError(e) {
+  const m = { approval_required: 'Serve la tua approvazione. Premi di nuovo e consenti.', not_in_manifest: 'Questa pagina non ha il permesso di usare il connettore.', blocked_by_policy: 'Il connettore è bloccato dalla tua organizzazione.', server_not_connected: 'Collega «Claude Code Remote» tra i connettori di claude.ai.', needs_reauth: 'Riconnetti «Claude Code Remote» nei connettori di claude.ai.', server_unavailable: 'Servizio non raggiungibile. Riprova tra poco.' };
+  return m[e && e.code] || (e && e.message) || 'Operazione non riuscita.';
+}
+function findTrigger(o, d = 0) {
+  if (!o || typeof o !== 'object' || d > 5) return null;
+  if (typeof o.cron_expression === 'string' || 'next_run_at' in o) return o;
+  for (const v of Object.values(o)) { const r = findTrigger(v, d + 1); if (r) return r; }
+  return null;
+}
+function resultJson(res) {
+  const cands = [res && res.payload, res && res.json];
+  try { const t = res && res.content && res.content[0] && res.content[0].text; if (t) cands.push(JSON.parse(t)); } catch (e) {}
+  for (const c of cands) { const t = findTrigger(c); if (t) return t; }
+  return null;
+}
+async function mcpCall(tool, input) {
+  if (!mcpNs) throw { code: 'not_in_manifest', message: 'Connettore non disponibile in questa vista.' };
+  return mcpNs.callTool(CONNECTOR, tool, input);
+}
+async function loadSched() {
+  if (!mcpTried) { mcpTried = true; try { mcpNs = await claude.use('mcp'); } catch (e) { mcpNs = null; } }
+  if (!mcpNs) { renderSched(); return; }
+  await Promise.all(JOBS.map(async j => {
+    const st = S.sched[j.key] || (S.sched[j.key] = { ui: parseCron('') });
+    try {
+      const t = resultJson(await mcpCall('get_trigger', { trigger_id: j.id }));
+      if (!t) throw { message: 'Risposta inattesa dal servizio.' };
+      st.cron = t.cron_expression; st.enabled = t.enabled !== false; st.next = t.next_run_at; st.last = t.last_run || null; st.err = '';
+      if (!st.dirty) st.ui = parseCron(t.cron_expression);
+    } catch (e) { st.err = mcpError(e); }
+  }));
+  renderSched();
+}
+function renderSched() {
+  const host = $('schedCards');
+  if (!host) return;
+  if (!mcpNs) {
+    host.innerHTML = '<div class="hint">Gli orari non sono modificabili da questa vista. Scrivi a Claude, ad esempio «importa il catalogo ogni 6 ore e aggiorna i feed alle 8:15».</div>';
+    return;
+  }
+  host.innerHTML = JOBS.map(j => {
+    const st = S.sched[j.key] || (S.sched[j.key] = { ui: parseCron('') });
+    const u = st.ui;
+    const modes = FREQS.map(([k, l]) => `<option value="${k}" ${u.mode === k ? 'selected' : ''}>${l}</option>`).join('') + (u.mode === 'custom' ? `<option value="custom" selected>Personalizzata (${esc(st.cron || '')})</option>` : '');
+    const showTime = u.mode === 'daily' || u.mode === 'days';
+    const lastTxt = st.last ? `${{ SUCCEEDED: 'riuscita', FAILED: 'fallita' }[st.last.status] || esc(st.last.status)} il ${fmtRome(st.last.fired_at)}` : 'mai eseguita';
+    const extra = j.key === 'feed' && S.meta ? `<div class="hint" style="margin:0">Catalogo attualmente importato: <b>${fmtRome(S.meta.generated)}</b></div>` : '';
+    return `<div class="panel sched-card" data-job="${j.key}">
+      <div><h3>${esc(j.title)}</h3><div class="hint" style="margin:2px 0 0">${esc(j.desc)}</div></div>
+      <label class="check" style="margin:0"><input type="checkbox" data-sch="enabled" ${st.enabled === false ? '' : 'checked'}> Attivo</label>
+      <div class="field" style="margin:0"><label for="m-${j.key}">Frequenza</label><select id="m-${j.key}" data-sch="mode">${modes}</select></div>
+      <div class="field" style="margin:0" ${showTime ? '' : 'hidden'}><label for="t-${j.key}">Orario</label><input type="time" id="t-${j.key}" data-sch="time" value="${u.time}"></div>
+      <div class="days" ${u.mode === 'days' ? '' : 'hidden'}>${DAYNAMES.map(([d, l]) => `<label><input type="checkbox" data-sch="day" value="${d}" ${u.days.includes(d) ? 'checked' : ''}>${l}</label>`).join('')}</div>
+      <div class="hint" style="margin:0">Prossima: <b>${st.enabled === false ? 'in pausa' : fmtRome(st.next)}</b> · Ultima: ${lastTxt}</div>
+      ${extra}
+      <div class="row2"><button class="btn primary sm" data-sch="save" ${st.dirty ? '' : 'disabled'}>Salva orario</button><button class="btn sm" data-sch="run">${st.confirmRun ? 'Conferma: esegui adesso' : 'Esegui ora'}</button></div>
+      <div class="err" id="e-${j.key}">${esc(st.err || '')}</div>
+      <div class="hint" style="margin:0" id="o-${j.key}">${esc(st.ok || '')}</div>
+    </div>`;
+  }).join('');
+}
+$('schedCards').addEventListener('change', async e => {
+  const card = e.target.closest('[data-job]'); if (!card) return;
+  const j = JOBS.find(x => x.key === card.dataset.job), st = S.sched[j.key], k = e.target.dataset.sch;
+  st.err = ''; st.ok = '';
+  if (k === 'mode') { st.ui.mode = e.target.value; st.dirty = true; renderSched(); }
+  else if (k === 'time') { st.ui.time = e.target.value || st.ui.time; st.dirty = true; renderSched(); }
+  else if (k === 'day') { const d = +e.target.value; st.ui.days = e.target.checked ? [...new Set([...st.ui.days, d])] : st.ui.days.filter(x => x !== d); st.dirty = true; renderSched(); }
+  else if (k === 'enabled') {
+    try { await mcpCall('update_trigger', { trigger_id: j.id, enabled: e.target.checked }); st.enabled = e.target.checked; st.ok = e.target.checked ? 'Riattivato.' : 'Messo in pausa.'; }
+    catch (err) { st.err = mcpError(err); e.target.checked = !e.target.checked; }
+    await loadSched();
+  }
+});
+$('schedCards').addEventListener('click', async e => {
+  const k = e.target.dataset && e.target.dataset.sch; if (k !== 'save' && k !== 'run') return;
+  const card = e.target.closest('[data-job]'), j = JOBS.find(x => x.key === card.dataset.job), st = S.sched[j.key];
+  st.err = ''; st.ok = '';
+  if (k === 'save') {
+    const cron = buildCron(st.ui);
+    if (!cron) { st.err = 'Scegli una frequenza.'; renderSched(); return; }
+    if (st.ui.mode === 'days' && !st.ui.days.length) { st.err = 'Scegli almeno un giorno.'; renderSched(); return; }
+    try { await mcpCall('update_trigger', { trigger_id: j.id, cron_expression: cron }); st.dirty = false; st.ok = 'Orario salvato.'; }
+    catch (err) { st.err = mcpError(err); }
+    await loadSched();
+  } else {
+    if (!st.confirmRun) { st.confirmRun = true; renderSched(); setTimeout(() => { st.confirmRun = false; renderSched(); }, 5000); return; }
+    st.confirmRun = false;
+    try {
+      await mcpCall('fire_trigger', { trigger_id: j.id });
+      st.ok = j.key === 'import' ? 'Avviato. Ci vogliono alcuni minuti; ricarica la pagina per vedere il catalogo nuovo.' : 'Avviato. Ci vogliono alcuni minuti; ricevi una notifica a fine esecuzione.';
+    } catch (err) { st.err = mcpError(err); }
+    renderSched();
+  }
+});
 
 /* ---------- boot ---------- */
 async function connectDb() {
