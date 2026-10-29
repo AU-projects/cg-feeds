@@ -877,6 +877,7 @@ function condValueHtml(c, i) {
   if (c.op === 'empty' || c.op === 'not_empty') return '<span class="muted" style="padding:6px 2px">–</span>';
   const col = COLBY[c.field];
   const val = Array.isArray(c.value) ? c.value.join('|') : (c.value ?? '');
+  if (col && col.type === 'bool' && (c.value === '' || c.value == null)) c.value = 'true';
   if (col && col.type === 'bool') return `<select data-ci="${i}" data-k="value"><option value="true" ${String(val) === 'true' ? 'selected' : ''}>Sì</option><option value="false" ${String(val) === 'false' ? 'selected' : ''}>No</option></select>`;
   const dl = col && col.enum ? ` list="dl-${c.field}"` : '';
   return `<input type="text" data-ci="${i}" data-k="value" value="${esc(val)}"${dl} placeholder="${c.op === 'in' ? 'a|b|c' : 'valore'}">`;
@@ -914,7 +915,7 @@ function onCondEdit(e) {
   const i = e.target.dataset.ci; if (i === undefined) return;
   const c = S.editing.conditions[i]; const k = e.target.dataset.k;
   if (k === 'value') c.value = c.op === 'in' ? e.target.value.split('|').map(s => s.trim()).filter(Boolean) : (COLBY[c.field].type === 'num' && e.target.value !== '' && !isNaN(Number(e.target.value)) ? Number(e.target.value) : e.target.value);
-  else { c[k] = e.target.value; if (e.type === 'change') { if (k === 'field') c.value = ''; drawConds(); } }
+  else { c[k] = e.target.value; if (e.type === 'change') { if (k === 'field') c.value = COLBY[c.field].type === 'bool' ? 'true' : ''; drawConds(); } }
   if (e.type === 'change' && k === 'op') { if (c.op === 'in' && !Array.isArray(c.value)) c.value = c.value ? [c.value] : []; drawConds(); }
   updateMatch();
 }
@@ -990,7 +991,8 @@ $('btnNewRule').addEventListener('click', () => openDrawer({ name: '', condition
 /* ---------- rules view ---------- */
 function condChip(c) {
   const op = (OPS.find(o => o.key === c.op) || {}).label || c.op;
-  const v = c.op === 'empty' || c.op === 'not_empty' ? '' : Array.isArray(c.value) ? (c.value.length > 4 ? c.value.length + ' valori' : c.value.join(' | ')) : c.value;
+  const isBool = (COLBY[c.field] || {}).type === 'bool';
+  const v = c.op === 'empty' || c.op === 'not_empty' ? '' : Array.isArray(c.value) ? (c.value.length > 4 ? c.value.length + ' valori' : c.value.join(' | ')) : isBool ? (String(c.value) === 'true' ? 'Sì' : 'No') : c.value;
   return `<span class="chip">${esc((COLBY[c.field] || {}).label || c.field)} ${esc(op)} ${esc(v)}</span>`;
 }
 function renderRules() {
