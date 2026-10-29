@@ -22,12 +22,11 @@ for (const r of recs) {
   const m = feedRow(r, o, settings, 'meta'); if (m) meta.push(m);
 }
 
-mkdirSync('feeds', { recursive: true });
-writeFileSync('feeds/google.tsv', toTsv(GOOGLE_COLS, google));
-writeFileSync('feeds/meta.csv', toCsv(META_COLS, meta));
+writeFileSync('google.tsv', toTsv(GOOGLE_COLS, google));
+writeFileSync('meta.csv', toCsv(META_COLS, meta));
 const generated = new Date().toISOString();
-writeFileSync('feeds/report.json', JSON.stringify({ generated, listings: recs.length, google: google.length, meta: meta.length, rules: rules.length }, null, 1));
-writeFileSync('feeds/index.html', `<!doctype html><meta charset="utf-8"><title>Feed catalogo</title><body style="font:16px system-ui;margin:2rem">
+writeFileSync('report.json', JSON.stringify({ generated, listings: recs.length, google: google.length, meta: meta.length, rules: rules.length }, null, 1));
+writeFileSync('index.html', `<!doctype html><meta charset="utf-8"><title>Feed catalogo</title><body style="font:16px system-ui;margin:2rem">
 <h1>Feed catalogo</h1><p>Aggiornati: ${generated}</p>
 <ul><li><a href="google.tsv">google.tsv</a> (${google.length} prodotti)</li><li><a href="meta.csv">meta.csv</a> (${meta.length} prodotti)</li></ul></body>`);
 

@@ -15,12 +15,12 @@ Feed pubblici: https://au-projects.github.io/cg-feeds/google.tsv  e  .../meta.cs
    (url dell'artifact sopra):
    - `list` collection `rules` -> scrivi l'array dei documenti (ognuno con `id`, `name`, `enabled`, `order`, `conditions`, `actions`) in `data/rules.json`
    - `get` doc `settings/main` -> `data/settings.json` (se non esiste, `{}`)
-4. `node scripts/build.mjs` -> `feeds/google.tsv`, `feeds/meta.csv`, `feeds/report.json`, `feeds/index.html` e `artifact/data/*.json`
+4. `node scripts/build.mjs` -> `google.tsv`, `meta.csv`, `report.json`, `index.html` (nella radice del repo, serviti da GitHub Pages) e `artifact/data/*.json`
 5. `node scripts/make-page.mjs` (rigenera `artifact/index.html`)
 6. Pubblica i dati dell'app: tool `Artifact` con `url` dell'artifact, `file_path` = `artifact/index.html`,
    `files` = `data/meta.json`, `data/catalog-0.json`, `data/catalog-1.json`, `data/catalog-2.json` (da `artifact/data/`),
    `capabilities` = `{"db": {}, "downloads": true}`. Il numero di shard e' in `artifact/data/meta.json`.
-7. `git add feeds scripts artifact/index.template.html artifact/index.html RUNBOOK.md && git commit -m "Aggiorna feed" && git push origin main`
+7. `git add google.tsv meta.csv report.json index.html scripts artifact/index.template.html artifact/index.html RUNBOOK.md && git commit -m "Aggiorna feed" && git push origin main`
    (se non c'e' nulla da committare, va bene).
 8. Verifica: `curl -sI https://au-projects.github.io/cg-feeds/google.tsv` deve dare 200.
 
