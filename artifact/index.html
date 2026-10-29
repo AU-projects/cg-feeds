@@ -1287,8 +1287,8 @@ $('pvSearch').addEventListener('input', () => { clearTimeout(pvTimer); pvTimer =
 /* ---------- schedule (Claude scheduled tasks, via the Claude Code Remote connector) ---------- */
 const CONNECTOR = 'Claude Code Remote';
 const JOBS = [
-  { key: 'import', id: 'trig_014gz3diZf2swzso8nEWUVvH', title: 'Importa il catalogo da Common Ground', desc: 'Scarica il catalogo aggiornato e rinnova la tabella di questa app. Non modifica i feed pubblici.' },
-  { key: 'feed', id: 'trig_01A26ENQb24gPLm6aXXYgTDH', title: 'Aggiorna i feed al link', desc: 'Applica le automazioni all’ultimo catalogo importato e pubblica google.tsv e meta.csv.' },
+  { key: 'import', id: 'trig_014gz3diZf2swzso8nEWUVvH', title: 'Importa il catalogo da Common Ground', desc: 'Scarica il catalogo aggiornato e rinnova la tabella di questa app. Non modifica i feed pubblici.', ask: 'Importa il catalogo ogni 6 ore' },
+  { key: 'feed', id: 'trig_01A26ENQb24gPLm6aXXYgTDH', title: 'Aggiorna i feed al link', desc: 'Applica le automazioni all’ultimo catalogo importato e pubblica google.tsv e meta.csv.', ask: 'Aggiorna i feed ogni giorno alle 08:15' },
 ];
 const FREQS = [['h1', 'Ogni ora'], ['h2', 'Ogni 2 ore'], ['h3', 'Ogni 3 ore'], ['h4', 'Ogni 4 ore'], ['h6', 'Ogni 6 ore'], ['h12', 'Ogni 12 ore'], ['daily', 'Ogni giorno'], ['days', 'Nei giorni scelti']];
 const DAYNAMES = [[1, 'Lun'], [2, 'Mar'], [3, 'Mer'], [4, 'Gio'], [5, 'Ven'], [6, 'Sab'], [0, 'Dom']];
@@ -1330,6 +1330,14 @@ function mcpError(e) {
   const m = { approval_required: 'Serve la tua approvazione. Premi di nuovo e consenti.', not_in_manifest: 'Questa pagina non ha il permesso di usare il connettore.', blocked_by_policy: 'Il connettore è bloccato dalla tua organizzazione.', server_not_connected: 'Collega «Claude Code Remote» tra i connettori di claude.ai.', needs_reauth: 'Riconnetti «Claude Code Remote» nei connettori di claude.ai.', server_unavailable: 'Servizio non raggiungibile. Riprova tra poco.' };
   return m[e && e.code] || (e && e.message) || 'Operazione non riuscita.';
 }
+const READONLY = new Set(['blocked_by_policy', 'not_in_manifest', 'server_not_connected', 'needs_reauth', 'server_not_found']);
+function describeUi(u, cron) {
+  const lab = Object.fromEntries(FREQS);
+  if (/^h\d+$/.test(u.mode)) return lab[u.mode];
+  if (u.mode === 'daily') return `Ogni giorno alle ${u.time}`;
+  if (u.mode === 'days') return `${DAYNAMES.filter(([d]) => u.days.includes(d)).map(([, l]) => l).join(', ')} alle ${u.time}`;
+  return cron ? `Personalizzata (${cron})` : '';
+}
 function findTrigger(o, d = 0) {
   if (!o || typeof o !== 'object' || d > 5) return null;
   if (typeof o.cron_expression === 'string' || 'next_run_at' in o) return o;
@@ -1354,9 +1362,9 @@ async function loadSched() {
     try {
       const t = resultJson(await mcpCall('get_trigger', { trigger_id: j.id }));
       if (!t) throw { message: 'Risposta inattesa dal servizio.' };
-      st.cron = t.cron_expression; st.enabled = t.enabled !== false; st.next = t.next_run_at; st.last = t.last_run || null; st.err = '';
+      st.cron = t.cron_expression; st.enabled = t.enabled !== false; st.next = t.next_run_at; st.last = t.last_run || null; st.err = ''; st.readonly = false; st.known = true;
       if (!st.dirty) st.ui = parseCron(t.cron_expression);
-    } catch (e) { st.err = mcpError(e); }
+    } catch (e) { st.err = mcpError(e); if (READONLY.has(e && e.code)) st.readonly = true; }
   }));
   renderSched();
 }
@@ -1367,9 +1375,21 @@ function renderSched() {
     host.innerHTML = '<div class="hint">Gli orari non sono modificabili da questa vista. Scrivi a Claude, ad esempio «importa il catalogo ogni 6 ore e aggiorna i feed alle 8:15».</div>';
     return;
   }
-  host.innerHTML = JOBS.map(j => {
+  const anyRO = JOBS.some(j => (S.sched[j.key] || {}).readonly || (S.sched[j.key] || {}).writeBlocked);
+  const banner = anyRO ? `<div class="hint" style="grid-column:1/-1;margin:0">Il tuo account non permette alle pagine di cambiare i task pianificati. Qui puoi solo leggere gli orari; per modificarli scrivi a Claude.</div>` : '';
+  host.innerHTML = banner + JOBS.map(j => {
     const st = S.sched[j.key] || (S.sched[j.key] = { ui: parseCron('') });
     const u = st.ui;
+    if (st.readonly || st.writeBlocked) {
+      const now = st.known ? `<b>${esc(describeUi(parseCron(st.cron), st.cron))}</b>${st.enabled === false ? ' (in pausa)' : ''}` : 'non leggibile da questa vista';
+      const when = st.known ? `<div class="hint" style="margin:0">Prossima: <b>${st.enabled === false ? 'in pausa' : fmtRome(st.next)}</b> · Ultima: ${st.last ? `${{ SUCCEEDED: 'riuscita', FAILED: 'fallita' }[st.last.status] || esc(st.last.status)} il ${fmtRome(st.last.fired_at)}` : 'mai eseguita'}</div>` : '';
+      return `<div class="panel sched-card" data-job="${j.key}">
+        <div><h3>${esc(j.title)}</h3><div class="hint" style="margin:2px 0 0">${esc(j.desc)}</div></div>
+        <div>Orario attuale: ${now}</div>${when}
+        <div class="hint" style="margin:0">Per cambiarlo o per eseguirlo subito, scrivi a Claude, per esempio: «${esc(j.ask)}»</div>
+        <div class="row2"><button class="btn sm" data-sch="copy" data-text="${esc(j.ask)}">Copia la frase</button></div>
+      </div>`;
+    }
     const modes = FREQS.map(([k, l]) => `<option value="${k}" ${u.mode === k ? 'selected' : ''}>${l}</option>`).join('') + (u.mode === 'custom' ? `<option value="custom" selected>Personalizzata (${esc(st.cron || '')})</option>` : '');
     const showTime = u.mode === 'daily' || u.mode === 'days';
     const lastTxt = st.last ? `${{ SUCCEEDED: 'riuscita', FAILED: 'fallita' }[st.last.status] || esc(st.last.status)} il ${fmtRome(st.last.fired_at)}` : 'mai eseguita';
@@ -1397,12 +1417,18 @@ $('schedCards').addEventListener('change', async e => {
   else if (k === 'day') { const d = +e.target.value; st.ui.days = e.target.checked ? [...new Set([...st.ui.days, d])] : st.ui.days.filter(x => x !== d); st.dirty = true; renderSched(); }
   else if (k === 'enabled') {
     try { await mcpCall('update_trigger', { trigger_id: j.id, enabled: e.target.checked }); st.enabled = e.target.checked; st.ok = e.target.checked ? 'Riattivato.' : 'Messo in pausa.'; }
-    catch (err) { st.err = mcpError(err); e.target.checked = !e.target.checked; }
+    catch (err) { st.err = mcpError(err); if (READONLY.has(err && err.code)) st.writeBlocked = true; e.target.checked = !e.target.checked; }
     await loadSched();
   }
 });
 $('schedCards').addEventListener('click', async e => {
-  const k = e.target.dataset && e.target.dataset.sch; if (k !== 'save' && k !== 'run') return;
+  const k = e.target.dataset && e.target.dataset.sch;
+  if (k === 'copy') {
+    const t = e.target.dataset.text;
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Frase copiata'), () => toast('Seleziona e copia: ' + t));
+    return;
+  }
+  if (k !== 'save' && k !== 'run') return;
   const card = e.target.closest('[data-job]'), j = JOBS.find(x => x.key === card.dataset.job), st = S.sched[j.key];
   st.err = ''; st.ok = '';
   if (k === 'save') {
@@ -1410,7 +1436,7 @@ $('schedCards').addEventListener('click', async e => {
     if (!cron) { st.err = 'Scegli una frequenza.'; renderSched(); return; }
     if (st.ui.mode === 'days' && !st.ui.days.length) { st.err = 'Scegli almeno un giorno.'; renderSched(); return; }
     try { await mcpCall('update_trigger', { trigger_id: j.id, cron_expression: cron }); st.dirty = false; st.ok = 'Orario salvato.'; }
-    catch (err) { st.err = mcpError(err); }
+    catch (err) { st.err = mcpError(err); if (READONLY.has(err && err.code)) st.writeBlocked = true; }
     await loadSched();
   } else {
     if (!st.confirmRun) { st.confirmRun = true; renderSched(); setTimeout(() => { st.confirmRun = false; renderSched(); }, 5000); return; }
@@ -1418,7 +1444,7 @@ $('schedCards').addEventListener('click', async e => {
     try {
       await mcpCall('fire_trigger', { trigger_id: j.id });
       st.ok = j.key === 'import' ? 'Avviato. Ci vogliono alcuni minuti; ricarica la pagina per vedere il catalogo nuovo.' : 'Avviato. Ci vogliono alcuni minuti; ricevi una notifica a fine esecuzione.';
-    } catch (err) { st.err = mcpError(err); }
+    } catch (err) { st.err = mcpError(err); if (READONLY.has(err && err.code)) st.writeBlocked = true; }
     renderSched();
   }
 });
