@@ -156,6 +156,7 @@ export function normalize(r) {
 
 // ---------- filters and rules ----------
 
+const inSets = new WeakMap();
 const low = v => (v == null ? '' : String(v)).toLowerCase();
 
 export function matches(rec, conds) {
@@ -179,7 +180,15 @@ function matchOne(rec, { field, op, value }) {
       if (typeof v === 'boolean') return v !== (low(value) === 'true');
       if (typeof v === 'number') return v !== Number(value);
       return low(v) !== low(value);
-    case 'in': return (Array.isArray(value) ? value : String(value).split('|')).some(x => low(x) === low(v));
+    case 'in': {
+      const arr = Array.isArray(value) ? value : String(value).split('|');
+      if (arr.length > 12) {
+        let set = inSets.get(arr);
+        if (!set) { set = new Set(arr.map(low)); inSets.set(arr, set); }
+        return set.has(low(v));
+      }
+      return arr.some(x => low(x) === low(v));
+    }
     case 'gt': return v != null && v !== '' && (typeof v === 'number' ? v > Number(value) : String(v) > String(value));
     case 'gte': return v != null && v !== '' && (typeof v === 'number' ? v >= Number(value) : String(v) >= String(value));
     case 'lt': return v != null && v !== '' && (typeof v === 'number' ? v < Number(value) : String(v) < String(value));
@@ -192,14 +201,26 @@ export function template(str, rec) {
   return String(str).replace(/\{(\w+)\}/g, (_, k) => (rec[k] == null ? '' : String(rec[k])));
 }
 
+export const COMPUTED = ['tags', ...CUSTOM_LABELS];
+
 // Returns only the fields the rules set, e.g. { custom_label_0: 'jazz', tags: ['a','b'] }.
+// Rules run in order. A rule whose conditions use tags or custom labels sees the values
+// assigned by the rules above it.
 export function applyRules(rec, rules) {
   const out = {};
   for (const rule of rules) {
-    if (rule.enabled === false || !matches(rec, rule.conditions || [])) continue;
+    if (rule.enabled === false) continue;
+    const conds = rule.conditions || [];
+    let target = rec;
+    if (conds.some(c => COMPUTED.includes(c.field))) {
+      target = Object.create(rec);
+      target.tags = (out.tags || []).join(', ');
+      for (const k of CUSTOM_LABELS) target[k] = out[k] || '';
+    }
+    if (!matches(target, conds)) continue;
     for (const a of rule.actions || []) {
       if (a.field === 'tags') {
-        const t = template(a.value, rec).split(',').map(s => s.trim()).filter(Boolean);
+        const t = template(a.value, rec).split(',').map(x => x.trim()).filter(Boolean);
         out.tags = [...new Set([...(out.tags || []), ...t])];
       } else if (a.mode === 'clear') {
         out[a.field] = '';

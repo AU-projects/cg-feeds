@@ -134,7 +134,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
   <div class="brand">Kagoshima Feed Hub<small>Common Ground → Google · Meta</small></div>
   <nav aria-label="Sezioni">
     <a href="#catalogo" data-view="catalogo">Catalogo</a>
-    <a href="#regole" data-view="regole">Regole</a>
+    <a href="#regole" data-view="regole">Automazioni</a>
     <a href="#feed" data-view="feed">Feed</a>
   </nav>
   <div class="stats" id="stats"></div>
@@ -148,13 +148,13 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
       <button class="btn" id="btnClear">Azzera filtri</button>
       <button class="btn" id="btnHelp" aria-expanded="false">Sintassi filtri</button>
       <button class="btn" id="btnExport">Esporta CSV</button>
-      <button class="btn primary" id="btnBulk">Modifica in blocco</button>
+      <button class="btn primary" id="btnBulk">Modifica prodotti</button>
       <span class="count" id="count"></span>
     </div>
     <div class="panel help" id="help" hidden>
       Nei filtri di testo: <code>jazz</code> contiene · <code>=jazz</code> uguale · <code>!jazz</code> non contiene · <code>^jazz</code> inizia con · <code>a|b</code> uno tra · <code>=</code> vuoto · <code>!</code> non vuoto.
       Nei numeri: <code>&gt;10</code> <code>&lt;=5</code> <code>5-20</code> <code>=</code> (vuoto). Nelle date: <code>2025-06</code> oppure <code>&gt;=2025-06-01</code>.
-      Le colonne in blu (tag e custom label) mostrano il risultato delle regole e non si possono usare per creare nuove regole.
+      Le colonne in blu (tag e custom label) mostrano il risultato delle automazioni e si possono filtrare come le altre.
     </div>
     <div class="grid" id="grid">
       <div class="grid-head" id="ghead"></div>
@@ -165,7 +165,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
 
   <section class="view" id="v-regole">
     <div class="toolbar">
-      <button class="btn primary" id="btnNewRule">Nuova regola</button>
+      <button class="btn primary" id="btnNewRule">Nuova automazione</button>
       <span class="muted" id="rulesInfo"></span>
     </div>
     <div class="scroll" id="rulesList"></div>
@@ -206,12 +206,13 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
 </main>
 
 <div class="drawer-bg" id="dbg"></div>
-<aside class="drawer" id="drawer" aria-label="Regola">
+<aside class="drawer" id="drawer" aria-label="Modifica prodotti">
   <header><h2 id="dTitle" style="margin:0;flex:1">Regola</h2><button class="btn sm" id="dClose">Chiudi</button></header>
   <div class="body">
+    <div class="panel help" id="dIntro" style="background:var(--bg)"></div>
     <div class="field"><label for="dName">Nome</label><input type="text" id="dName"></div>
-    <div>
-      <div class="lbl">Si applica ai prodotti che soddisfano tutte queste condizioni</div>
+    <div id="dCondWrap">
+      <div class="lbl">Prodotti che soddisfano tutte queste condizioni</div>
       <div id="dConds"></div>
       <button class="btn sm" id="dAddCond">Aggiungi condizione</button>
       <div class="hint" id="dMatch" style="margin-top:8px"></div>
@@ -224,7 +225,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
     </div>
     <div class="sample" id="dSample"></div>
   </div>
-  <footer><button class="btn" id="dCancel">Annulla</button><button class="btn primary" id="dSave">Salva regola</button></footer>
+  <footer><button class="btn" id="dCancel">Annulla</button><button class="btn primary" id="dApply">Applica ora</button><button class="btn" id="dSave">Salva come automazione</button></footer>
 </aside>
 <div id="menuHost"></div>
 <div id="toastHost"></div>
@@ -388,6 +389,7 @@ function normalize(r) {
 
 // ---------- filters and rules ----------
 
+const inSets = new WeakMap();
 const low = v => (v == null ? '' : String(v)).toLowerCase();
 
 function matches(rec, conds) {
@@ -411,7 +413,15 @@ function matchOne(rec, { field, op, value }) {
       if (typeof v === 'boolean') return v !== (low(value) === 'true');
       if (typeof v === 'number') return v !== Number(value);
       return low(v) !== low(value);
-    case 'in': return (Array.isArray(value) ? value : String(value).split('|')).some(x => low(x) === low(v));
+    case 'in': {
+      const arr = Array.isArray(value) ? value : String(value).split('|');
+      if (arr.length > 12) {
+        let set = inSets.get(arr);
+        if (!set) { set = new Set(arr.map(low)); inSets.set(arr, set); }
+        return set.has(low(v));
+      }
+      return arr.some(x => low(x) === low(v));
+    }
     case 'gt': return v != null && v !== '' && (typeof v === 'number' ? v > Number(value) : String(v) > String(value));
     case 'gte': return v != null && v !== '' && (typeof v === 'number' ? v >= Number(value) : String(v) >= String(value));
     case 'lt': return v != null && v !== '' && (typeof v === 'number' ? v < Number(value) : String(v) < String(value));
@@ -424,14 +434,26 @@ function template(str, rec) {
   return String(str).replace(/\{(\w+)\}/g, (_, k) => (rec[k] == null ? '' : String(rec[k])));
 }
 
+const COMPUTED = ['tags', ...CUSTOM_LABELS];
+
 // Returns only the fields the rules set, e.g. { custom_label_0: 'jazz', tags: ['a','b'] }.
+// Rules run in order. A rule whose conditions use tags or custom labels sees the values
+// assigned by the rules above it.
 function applyRules(rec, rules) {
   const out = {};
   for (const rule of rules) {
-    if (rule.enabled === false || !matches(rec, rule.conditions || [])) continue;
+    if (rule.enabled === false) continue;
+    const conds = rule.conditions || [];
+    let target = rec;
+    if (conds.some(c => COMPUTED.includes(c.field))) {
+      target = Object.create(rec);
+      target.tags = (out.tags || []).join(', ');
+      for (const k of CUSTOM_LABELS) target[k] = out[k] || '';
+    }
+    if (!matches(target, conds)) continue;
     for (const a of rule.actions || []) {
       if (a.field === 'tags') {
-        const t = template(a.value, rec).split(',').map(s => s.trim()).filter(Boolean);
+        const t = template(a.value, rec).split(',').map(x => x.trim()).filter(Boolean);
         out.tags = [...new Set([...(out.tags || []), ...t])];
       } else if (a.mode === 'clear') {
         out[a.field] = '';
@@ -630,6 +652,8 @@ function buildFacets() {
 }
 
 function activeRules() { return sortRules(S.rules); }
+let rcT = 0;
+function scheduleRecompute() { clearTimeout(rcT); rcT = setTimeout(recompute, 120); }
 
 function recompute() {
   const rules = activeRules();
@@ -858,14 +882,26 @@ $('btnExport').addEventListener('click', async () => {
 });
 
 /* ---------- rules drawer ---------- */
-const FIELD_OPTS = COLUMNS.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join('');
+const FIELD_OPTS = ALLCOLS.map(c => `<option value="${c.key}">${esc(c.label)}${c.calc ? ' (da automazioni sopra)' : ''}</option>`).join('');
 const OP_OPTS = OPS.map(o => `<option value="${o.key}">${esc(o.label)}</option>`).join('');
 const ACT_OPTS = ACTION_FIELDS.map(a => `<option value="${a.key}">${esc(a.label)}</option>`).join('');
 
-function openDrawer(rule) {
-  S.editing = JSON.parse(JSON.stringify(rule));
-  $('dTitle').textContent = rule.id ? 'Modifica regola' : 'Nuova regola';
+function openDrawer(rule, ctx = {}) {
+  S.editing = JSON.parse(JSON.stringify(rule)); S.ctx = ctx;
+  const fromCat = ctx.from === 'catalog';
+  $('dTitle').textContent = fromCat ? 'Modifica prodotti' : rule.id ? 'Modifica automazione' : 'Nuova automazione';
   $('dName').value = rule.name || '';
+  $('dCondWrap').hidden = !!ctx.selection;
+  $('dApply').hidden = !fromCat;
+  $('dApply').className = 'btn primary';
+  $('dSave').hidden = !!ctx.selection;
+  $('dSave').className = fromCat ? 'btn' : 'btn primary';
+  $('dSave').textContent = fromCat ? 'Salva come automazione' : 'Salva';
+  $('dIntro').innerHTML = fromCat
+    ? (ctx.selection
+      ? '<b>Modifica una tantum.</b> Vale solo per i prodotti che hai selezionato adesso.'
+      : '<b>Applica ora</b> cambia solo i prodotti che vedi adesso. <b>Salva come automazione</b> applica la stessa modifica a ogni import, anche ai prodotti nuovi che rientrano nel filtro.')
+    : '<b>Automazione.</b> Viene riapplicata a ogni import del catalogo, anche ai prodotti nuovi che soddisfano le condizioni.';
   drawConds(); drawActs(); updateMatch();
   $('dbg').classList.add('on'); $('drawer').classList.add('on');
 }
@@ -901,14 +937,20 @@ function drawActs() {
     return `<div class="erow a"><select data-ai="${i}" data-k="field">${ACT_OPTS.replace(`value="${a.field}"`, `value="${a.field}" selected`)}</select>${val}<button class="btn sm danger" data-adel="${i}" aria-label="Rimuovi">✕</button></div>`;
   }).join('') || '<div class="hint">Aggiungi almeno un valore da assegnare.</div>';
 }
+function matchedIds() {
+  return S.ctx.selection ? [...S.sel] : S.recs.filter(r => matches(r, S.editing.conditions)).map(r => r.id);
+}
 function updateMatch() {
   const rule = S.editing; if (!rule) return;
   const ms = []; let n = 0;
-  for (const r of S.recs) if (matches(r, rule.conditions)) { n++; if (ms.length < 3) ms.push(r); }
-  $('dMatch').innerHTML = `Prodotti coinvolti: <b>${nf.format(n)}</b> di ${nf.format(S.recs.length)}`;
+  if (S.ctx.selection) { n = S.sel.size; for (const r of S.recs) if (S.sel.has(r.id)) { ms.push(r); if (ms.length >= 3) break; } }
+  else for (const r of S.recs) if (matches(r, rule.conditions)) { n++; if (ms.length < 3) ms.push(r); }
+  $('dMatch').innerHTML = S.ctx.selection ? `Prodotti selezionati: <b>${nf.format(n)}</b>` : `Prodotti coinvolti adesso: <b>${nf.format(n)}</b> di ${nf.format(S.recs.length)}`;
   const acts = rule.actions.filter(a => a.value !== '' || a.mode === 'clear');
   $('dSample').innerHTML = ms.length && acts.length ? `<div class="lbl">Esempio sui primi prodotti</div>` + ms.map(r => `<div><span class="muted">${esc(r.artist)} – ${esc(r.title)}</span><br>${acts.map(a => `<span class="chip act">${esc(a.field)} = ${esc(template(a.value, r))}</span>`).join(' ')}</div>`).join('') : '';
   $('dSave').disabled = !acts.length;
+  $('dApply').disabled = !acts.length || !n;
+  $('dApply').textContent = `Applica ora a ${nf.format(n)} prodotti`;
 }
 $('dConds').addEventListener('input', onCondEdit); $('dConds').addEventListener('change', onCondEdit);
 function onCondEdit(e) {
@@ -932,18 +974,35 @@ function onActEdit(e) {
 $('dActs').addEventListener('click', e => { const i = e.target.dataset.adel; if (i !== undefined) { S.editing.actions.splice(i, 1); drawActs(); updateMatch(); } });
 $('dAddAct').addEventListener('click', () => { const used = new Set(S.editing.actions.map(a => a.field)); const f = ACTION_FIELDS.find(a => !used.has(a.key)) || ACTION_FIELDS[0]; S.editing.actions.push({ field: f.key, value: f.key.startsWith('exclude_') ? 'true' : '' }); drawActs(); updateMatch(); });
 
-$('dSave').addEventListener('click', async () => {
-  const r = S.editing; if (!r) return;
-  const rule = {
+function cleanRule(r) {
+  return {
     name: $('dName').value.trim() || autoName(r),
     enabled: r.enabled !== false,
-    order: r.order ?? (S.rules.reduce((m, x) => Math.max(m, x.order ?? 0), 0) + 1),
+    order: r.order ?? nextOrder(),
     conditions: r.conditions.filter(c => c.op === 'empty' || c.op === 'not_empty' || (c.value !== '' && !(Array.isArray(c.value) && !c.value.length))),
     actions: r.actions.filter(a => a.value !== '' || a.mode === 'clear').map(a => ({ field: a.field, value: String(a.value) })),
   };
+}
+const nextOrder = () => S.rules.reduce((m, x) => Math.max(m, x.order ?? 0), 0) + 1;
+$('dSave').addEventListener('click', async () => {
+  const r = S.editing; if (!r) return;
+  const rule = { ...cleanRule(r), kind: 'auto' };
   closeDrawer();
   await saveRule(r.id, rule);
-  toast('Regola salvata');
+  toast('Automazione salvata');
+});
+$('dApply').addEventListener('click', async () => {
+  const r = S.editing; if (!r) return;
+  const base = cleanRule({ ...r, order: nextOrder() });
+  const ids = matchedIds();
+  closeDrawer();
+  const group = 'g' + Date.now().toString(36);
+  const name = $('dName').value.trim() || `Modifica manuale · ${nf.format(ids.length)} prodotti`;
+  for (let i = 0; i < ids.length; i += 2500) {
+    await saveRule(null, { name, kind: 'manual', group, count: ids.length, enabled: true, order: base.order,
+      conditions: [{ field: 'id', op: 'in', value: ids.slice(i, i + 2500) }], actions: base.actions });
+  }
+  toast(`Modifica applicata a ${nf.format(ids.length)} prodotti`);
 });
 function autoName(r) {
   const c = r.conditions[0];
@@ -960,9 +1019,9 @@ async function saveRule(id, rule) {
       return;
     } catch (e) { toast('Salvataggio non riuscito: la regola vale solo in questa sessione'); }
   }
-  const local = { ...rule, id: id || 'local-' + Date.now() };
+  const local = { ...rule, id: id || 'local-' + Date.now() + Math.random().toString(36).slice(2, 6) };
   S.rules = [...S.rules.filter(x => x.id !== local.id), local];
-  recompute(); renderRules();
+  scheduleRecompute(); renderRules();
 }
 async function deleteRule(id) {
   if (S.db) { try { await S.db.collection('rules').doc(id).delete(); return; } catch (e) { toast('Eliminazione non riuscita'); } }
@@ -973,20 +1032,14 @@ const stripId = r => { const { id, ...rest } = r; return rest; };
 
 /* bulk edit from the catalog */
 $('btnBulk').addEventListener('click', () => {
+  const selection = S.sel.size > 0;
   let conds = currentConds();
-  const usesCalc = Object.keys(S.filters).some(k => S.filters[k] && COLBY[k] && COLBY[k].calc);
-  if (usesCalc) { toast('I filtri su tag e label non si possono trasformare in regola. Toglili e riprova.'); return; }
   const q = S.q.trim();
   if (q) conds = [...conds, ...q.split(/\s+/).map(t => ({ field: 'title', op: 'contains', value: t }))];
-  let note = '';
-  if (S.sel.size) {
-    if (S.sel.size > 1500) { toast('Seleziona al massimo 1.500 righe, oppure usa i filtri.'); return; }
-    conds = [{ field: 'id', op: 'in', value: [...S.sel] }];
-    note = `${S.sel.size} prodotti selezionati`;
-  }
-  openDrawer({ name: note || '', conditions: conds, actions: [{ field: 'custom_label_0', value: '' }] });
+  if (!selection && !S.view.length) { toast('Nessun prodotto con questi filtri.'); return; }
+  openDrawer({ name: '', conditions: selection ? [] : conds, actions: [{ field: 'custom_label_0', value: '' }] }, { from: 'catalog', selection });
 });
-$('btnNewRule').addEventListener('click', () => openDrawer({ name: '', conditions: [], actions: [{ field: 'custom_label_0', value: '' }] }));
+$('btnNewRule').addEventListener('click', () => openDrawer({ name: '', conditions: [], actions: [{ field: 'custom_label_0', value: '' }] }, { from: 'rules' }));
 
 /* ---------- rules view ---------- */
 function condChip(c) {
@@ -995,47 +1048,67 @@ function condChip(c) {
   const v = c.op === 'empty' || c.op === 'not_empty' ? '' : Array.isArray(c.value) ? (c.value.length > 4 ? c.value.length + ' valori' : c.value.join(' | ')) : isBool ? (String(c.value) === 'true' ? 'Sì' : 'No') : c.value;
   return `<span class="chip">${esc((COLBY[c.field] || {}).label || c.field)} ${esc(op)} ${esc(v)}</span>`;
 }
+function units() {
+  const map = new Map(), out = [];
+  for (const r of activeRules()) {
+    if (r.group) {
+      let u = map.get(r.group);
+      if (!u) { u = { key: r.group, docs: [], manual: true, r }; map.set(r.group, u); out.push(u); }
+      u.docs.push(r);
+    } else out.push({ key: r.id, docs: [r], manual: false, r });
+  }
+  return out;
+}
 function renderRules() {
-  const rules = activeRules();
-  $('rulesInfo').textContent = rules.length ? `${rules.length} regole, applicate dall’alto verso il basso` : '';
-  if (!rules.length) {
-    $('rulesList').innerHTML = `<div class="panel empty">Nessuna regola. Dal Catalogo filtra un gruppo di prodotti e premi «Modifica in blocco», oppure crea una regola da qui.<br><br>Esempio: genere = Jazz e prezzo ≥ 20 → custom label 0 = «jazz-premium».</div>`;
+  const us = units();
+  $('rulesInfo').textContent = us.length ? `${us.length} voci, applicate dall’alto verso il basso: se due toccano lo stesso campo vince quella più in basso` : '';
+  if (!us.length) {
+    $('rulesList').innerHTML = `<div class="panel empty">Nessuna automazione. Dal Catalogo filtra un gruppo di prodotti e premi «Modifica prodotti».<br>Potrai applicare la modifica solo a quei prodotti, oppure salvarla come automazione: verrà riapplicata a ogni import.</div>`;
     return;
   }
-  $('rulesList').innerHTML = rules.map((r, i) => {
-    let n = 0; for (const x of S.recs) if (matches(x, r.conditions || [])) n++;
-    const del = S.confirmDel === r.id;
-    return `<div class="panel rule ${r.enabled === false ? 'off' : ''}">
-      <input type="checkbox" data-en="${r.id}" ${r.enabled === false ? '' : 'checked'} aria-label="Attiva regola">
-      <div><h3>${esc(r.name)}</h3><div class="chips">${(r.conditions || []).map(condChip).join('') || '<span class="chip">Tutto il catalogo</span>'}</div>
-        <div class="chips">${(r.actions || []).map(a => `<span class="chip act">${esc(a.field)} = ${esc(a.value)}</span>`).join('')}</div>
-        <div class="hint" style="margin:6px 0 0"><b>${nf.format(n)}</b> prodotti</div></div>
+  $('rulesList').innerHTML = us.map((u, i) => {
+    const r = u.r;
+    let n = 0; for (const x of S.recs) if (u.docs.some(d => matches(x, d.conditions || []))) n++;
+    const del = S.confirmDel === u.key;
+    const off = r.enabled === false;
+    const kind = u.manual ? '<span class="chip">Modifica manuale</span>' : '<span class="chip act">Automazione</span>';
+    const where = u.manual
+      ? `<div class="hint" style="margin:6px 0 0">Prodotti scelti una volta: <b>${nf.format(n)}</b>. Non si estende ai prodotti nuovi.</div>`
+      : `<div class="chips">${(r.conditions || []).map(condChip).join('') || '<span class="chip">Tutto il catalogo</span>'}</div><div class="hint" style="margin:6px 0 0"><b>${nf.format(n)}</b> prodotti adesso</div>`;
+    return `<div class="panel rule ${off ? 'off' : ''}">
+      <input type="checkbox" data-en="${u.key}" ${off ? '' : 'checked'} aria-label="Attiva">
+      <div><h3>${esc(r.name)} ${kind}${off ? ' <span class="chip">Disattivata</span>' : ''}</h3>
+        ${where}
+        <div class="chips">${(r.actions || []).map(a => `<span class="chip act">${esc(a.field)} = ${esc(a.value)}</span>`).join('')}</div></div>
       <div class="actions">
-        <button class="btn sm" data-up="${r.id}" ${i === 0 ? 'disabled' : ''} aria-label="Sposta su">▲</button>
-        <button class="btn sm" data-down="${r.id}" ${i === rules.length - 1 ? 'disabled' : ''} aria-label="Sposta giù">▼</button>
-        <button class="btn sm" data-edit="${r.id}">Modifica</button>
-        <button class="btn sm danger" data-del="${r.id}">${del ? 'Conferma elimina' : 'Elimina'}</button>
+        <button class="btn sm" data-up="${u.key}" ${i === 0 ? 'disabled' : ''} aria-label="Sposta su">▲</button>
+        <button class="btn sm" data-down="${u.key}" ${i === us.length - 1 ? 'disabled' : ''} aria-label="Sposta giù">▼</button>
+        ${u.manual ? '' : `<button class="btn sm" data-edit="${u.key}">Modifica</button>`}
+        <button class="btn sm danger" data-del="${u.key}">${del ? 'Conferma elimina' : 'Elimina'}</button>
       </div></div>`;
   }).join('');
 }
+async function moveUnit(key, dir) {
+  const us = units(), i = us.findIndex(u => u.key === key), j = i + dir;
+  if (i < 0 || j < 0 || j >= us.length) return;
+  [us[i], us[j]] = [us[j], us[i]];
+  for (let k = 0; k < us.length; k++) for (const d of us[k].docs) if ((d.order ?? 0) !== k + 1) await patchRule(d, { order: k + 1 });
+}
 $('rulesList').addEventListener('click', async e => {
-  const t = e.target, rules = activeRules();
-  const find = id => rules.find(r => r.id === id);
-  if (t.dataset.edit) openDrawer(find(t.dataset.edit));
+  const t = e.target, us = units();
+  const find = k => us.find(u => u.key === k);
+  if (t.dataset.edit) openDrawer(find(t.dataset.edit).r, { from: 'rules' });
   else if (t.dataset.del) {
-    if (S.confirmDel === t.dataset.del) { S.confirmDel = null; await deleteRule(t.dataset.del); toast('Regola eliminata'); }
-    else { S.confirmDel = t.dataset.del; renderRules(); setTimeout(() => { S.confirmDel = null; if ($('v-regole').classList.contains('on')) renderRules(); }, 4000); }
-  } else if (t.dataset.up || t.dataset.down) {
-    const id = t.dataset.up || t.dataset.down; const i = rules.findIndex(r => r.id === id); const j = t.dataset.up ? i - 1 : i + 1;
-    if (j < 0 || j >= rules.length) return;
-    const a = rules[i], b = rules[j];
-    const oa = a.order ?? i, ob = b.order ?? j;
-    await patchRule(a, { order: ob === oa ? ob + (j > i ? 1 : -1) : ob }); await patchRule(b, { order: oa });
-  }
+    const k = t.dataset.del;
+    if (S.confirmDel === k) { S.confirmDel = null; for (const d of find(k).docs) await deleteRule(d.id); toast('Eliminata'); }
+    else { S.confirmDel = k; renderRules(); setTimeout(() => { S.confirmDel = null; if ($('v-regole').classList.contains('on')) renderRules(); }, 4000); }
+  } else if (t.dataset.up) moveUnit(t.dataset.up, -1);
+  else if (t.dataset.down) moveUnit(t.dataset.down, 1);
 });
-$('rulesList').addEventListener('change', e => {
-  const id = e.target.dataset.en; if (!id) return;
-  patchRule(S.rules.find(r => r.id === id), { enabled: e.target.checked });
+$('rulesList').addEventListener('change', async e => {
+  const k = e.target.dataset.en; if (!k) return;
+  const u = units().find(x => x.key === k); if (!u) return;
+  for (const d of u.docs) await patchRule(d, { enabled: e.target.checked });
 });
 
 /* ---------- feed view ---------- */
@@ -1096,7 +1169,7 @@ async function connectDb() {
   S.db = db;
   db.collection('rules').onSnapshot(snap => {
     S.rules = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    recompute(); if ($('v-regole').classList.contains('on')) renderRules(); if ($('v-feed').classList.contains('on')) renderFeed(true);
+    scheduleRecompute(); if ($('v-regole').classList.contains('on')) renderRules(); if ($('v-feed').classList.contains('on')) renderFeed(true);
   }, () => {});
   db.doc('settings/main').onSnapshot(d => {
     if (d.exists) { S.settings = { ...S.settings, ...d.data() }; if ($('v-feed').classList.contains('on')) renderFeed(true); }
