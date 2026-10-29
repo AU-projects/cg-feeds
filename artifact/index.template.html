@@ -1,0 +1,779 @@
+<title>Kagoshima Feed Hub</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky top bar with three tabs; the catalog tab is one scrolling grid with filters under each header; rules edit in a side drawer. */
+:root {
+  --bg: #f3f4f7; --surface: #ffffff; --ink: #141821; --muted: #626a7b; --line: #dde0e7;
+  --accent: #3347d1; --accent-ink: #ffffff; --accent-soft: #e5e8fb; --sel: #eef0ff; --alt: #fafbfc;
+  --good: #1b7f4c; --warn: #a85a0a; --bad: #bf3329; --shadow: 0 8px 30px rgba(20,24,33,.14);
+  --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1016; --surface: #151922; --ink: #e8ebf3; --muted: #8b94a7; --line: #2a303d;
+    --accent: #8d9cff; --accent-ink: #0d1016; --accent-soft: #232a4e; --sel: #1d2340; --alt: #181c26;
+    --good: #52c58b; --warn: #e5a04d; --bad: #f0786f; --shadow: 0 8px 30px rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1016; --surface: #151922; --ink: #e8ebf3; --muted: #8b94a7; --line: #2a303d;
+  --accent: #8d9cff; --accent-ink: #0d1016; --accent-soft: #232a4e; --sel: #1d2340; --alt: #181c26;
+  --good: #52c58b; --warn: #e5a04d; --bad: #f0786f; --shadow: 0 8px 30px rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.4 var(--sans); padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 12px; padding-block: 12px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.muted { color: var(--muted); }
+
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; }
+.brand { font-weight: 700; font-size: 17px; letter-spacing: -.01em; }
+.brand small { font-weight: 500; color: var(--muted); font-size: 12px; margin-left: 8px; }
+nav { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+nav a { padding: 6px 14px; border-radius: 6px; color: var(--muted); text-decoration: none; font-weight: 500; }
+nav a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
+.stats { margin-left: auto; display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.stats b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 6px 12px; font-weight: 500; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--bad); }
+.btn.sm { padding: 3px 8px; font-size: 12.5px; }
+input[type=text], input[type=search], input[type=number], select, textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; min-width: 0; }
+input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+
+main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.view { display: none; min-height: 0; flex: 1; flex-direction: column; gap: 10px; }
+.view.on { display: flex; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar .grow { flex: 1 1 220px; max-width: 420px; }
+.count { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.count b { color: var(--ink); }
+
+.grid { flex: 1; min-height: 320px; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; position: relative; }
+.grid-head { position: sticky; top: 0; z-index: 3; background: var(--surface); }
+.r { display: flex; align-items: stretch; }
+.c { flex: none; padding: 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; }
+.c.num { justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.c.chk { width: 36px; justify-content: center; padding: 0; position: sticky; left: 0; background: inherit; z-index: 2; }
+.hd { height: 34px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 12.5px; color: var(--muted); background: var(--surface); }
+.hd .c { cursor: pointer; user-select: none; gap: 4px; }
+.hd .c:hover { color: var(--ink); }
+.hd .sortmark { color: var(--accent); }
+.hd .c.calc { color: var(--accent); }
+.fl { height: 36px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.fl .c { padding: 4px 4px; }
+.fl input, .fl select { width: 100%; padding: 3px 6px; font-size: 12.5px; height: 26px; }
+.fl input.on, .fl select.on { border-color: var(--accent); background: var(--accent-soft); }
+.rows { position: relative; }
+.rows .win { position: absolute; left: 0; top: 0; }
+.row { height: 30px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); font-size: 13px; }
+.row:nth-child(even) { background: var(--alt); }
+.row.sel { background: var(--sel); }
+.row .c.chk { background: inherit; }
+.tag { background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 0 6px; margin-right: 4px; font-size: 12px; }
+.pill { border-radius: 99px; padding: 0 8px; font-size: 12px; }
+.pill.pub { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.pill.prv { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.empty { padding: 48px 16px; text-align: center; color: var(--muted); }
+.stock0 { color: var(--bad); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+.scroll { overflow: auto; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
+.field { display: grid; gap: 4px; margin-bottom: 10px; }
+.field > label, .lbl { font-size: 12px; font-weight: 600; color: var(--muted); }
+.check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+.rule { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px; align-items: center; }
+.rule.off { opacity: .55; }
+.rule h3 { margin: 0; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.chip { border: 1px solid var(--line); border-radius: 5px; padding: 1px 7px; font-size: 12px; background: var(--bg); }
+.chip.act { border-color: transparent; background: var(--accent-soft); color: var(--accent); }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 12.5px; }
+.kv dt { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.urlbox { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.urlbox input { flex: 1; font-family: var(--mono); font-size: 12px; }
+
+.drawer-bg { position: fixed; inset: 0; background: rgba(8,10,16,.45); z-index: 20; display: none; }
+.drawer-bg.on { display: block; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(600px, 100vw); background: var(--surface); box-shadow: var(--shadow); z-index: 21; display: none; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
+.drawer.on { display: flex; }
+.drawer > header, .drawer > footer { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.drawer > footer { border-top: 1px solid var(--line); border-bottom: 0; justify-content: flex-end; padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)); }
+.drawer .body { padding: 16px 18px; overflow: auto; flex: 1; display: grid; gap: 18px; align-content: start; }
+.erow { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(100px, .8fr) minmax(110px, 1.3fr) auto; gap: 6px; margin-bottom: 6px; }
+.erow.a { grid-template-columns: minmax(130px, 1fr) minmax(150px, 1.6fr) auto; }
+.erow > * { min-width: 0; }
+.hint { font-size: 12px; color: var(--muted); margin: 2px 0 8px; }
+.sample { font-size: 12.5px; border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 3px; }
+.toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; z-index: 40; font-weight: 500; }
+.menu { position: absolute; z-index: 15; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 8px; box-shadow: var(--shadow); max-height: 60vh; overflow: auto; display: grid; gap: 2px; min-width: 200px; }
+.help { font-size: 12.5px; color: var(--muted); }
+.help code { font-family: var(--mono); background: var(--bg); border-radius: 4px; padding: 0 4px; }
+@media (max-width: 640px) { .stats { margin-left: 0; } .erow, .erow.a { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: up .18s ease-out; } @keyframes up { from { opacity: 0; transform: translate(-50%, 8px); } } }
+</style>
+
+<header>
+  <div class="brand">Kagoshima Feed Hub<small>Common Ground → Google · Meta</small></div>
+  <nav aria-label="Sezioni">
+    <a href="#catalogo" data-view="catalogo">Catalogo</a>
+    <a href="#regole" data-view="regole">Regole</a>
+    <a href="#feed" data-view="feed">Feed</a>
+  </nav>
+  <div class="stats" id="stats"></div>
+</header>
+
+<main>
+  <section class="view" id="v-catalogo">
+    <div class="toolbar">
+      <input type="search" id="q" class="grow" placeholder="Cerca titolo, artista, etichetta, cat. n., GTIN, ID" aria-label="Cerca">
+      <button class="btn" id="btnCols">Colonne</button>
+      <button class="btn" id="btnClear">Azzera filtri</button>
+      <button class="btn" id="btnHelp" aria-expanded="false">Sintassi filtri</button>
+      <button class="btn" id="btnExport">Esporta CSV</button>
+      <button class="btn primary" id="btnBulk">Modifica in blocco</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="panel help" id="help" hidden>
+      Nei filtri di testo: <code>jazz</code> contiene · <code>=jazz</code> uguale · <code>!jazz</code> non contiene · <code>^jazz</code> inizia con · <code>a|b</code> uno tra · <code>=</code> vuoto · <code>!</code> non vuoto.
+      Nei numeri: <code>&gt;10</code> <code>&lt;=5</code> <code>5-20</code> <code>=</code> (vuoto). Nelle date: <code>2025-06</code> oppure <code>&gt;=2025-06-01</code>.
+      Le colonne in blu (tag e custom label) mostrano il risultato delle regole e non si possono usare per creare nuove regole.
+    </div>
+    <div class="grid" id="grid">
+      <div class="grid-head" id="ghead"></div>
+      <div class="rows" id="rows"><div class="win" id="win"></div></div>
+      <div class="empty" id="loading">Carico il catalogo…</div>
+    </div>
+  </section>
+
+  <section class="view" id="v-regole">
+    <div class="toolbar">
+      <button class="btn primary" id="btnNewRule">Nuova regola</button>
+      <span class="muted" id="rulesInfo"></span>
+    </div>
+    <div class="scroll" id="rulesList"></div>
+  </section>
+
+  <section class="view" id="v-feed">
+    <div class="scroll">
+      <div class="cols2">
+        <div class="panel">
+          <h2>Link dei feed</h2>
+          <div class="hint">Da inserire in Google Merchant Center (Prodotti → Feed → Aggiungi feed → Recupero pianificato) e nel catalogo Meta (Origine dati → Feed di dati → URL).</div>
+          <div class="urlbox"><span class="lbl" style="width:52px">Google</span><input type="text" id="uGoogle" readonly><button class="btn sm" data-copy="uGoogle">Copia</button></div>
+          <div class="urlbox"><span class="lbl" style="width:52px">Meta</span><input type="text" id="uMeta" readonly><button class="btn sm" data-copy="uMeta">Copia</button></div>
+          <div class="field"><label for="feedBase">Indirizzo base dei feed</label><input type="text" id="feedBase"></div>
+          <div class="hint">I file si aggiornano ogni notte con il catalogo e le regole salvate qui. Per aggiornarli subito, scrivi a Claude «aggiorna i feed».</div>
+          <dl class="kv" id="genInfo"></dl>
+        </div>
+        <div class="panel">
+          <h2>Impostazioni</h2>
+          <div class="field"><label for="sCur">Valuta</label><input type="text" id="sCur" maxlength="3"></div>
+          <div class="field"><label for="sLang">Lingua delle descrizioni generate</label><select id="sLang"><option value="it">Italiano</option><option value="en">English</option></select></div>
+          <label class="check"><input type="checkbox" id="sOos"> Includi i prodotti esauriti</label>
+          <label class="check"><input type="checkbox" id="sPriv"> Includi i prodotti privati</label>
+          <label class="check"><input type="checkbox" id="sTitleCond"> Aggiungi le condizioni (es. [NM/VG+]) al titolo dei prodotti usati</label>
+          <div class="field"><label for="sCatRel">Google product category · dischi</label><input type="text" id="sCatRel"></div>
+          <div class="field"><label for="sCatBook">Google product category · libri</label><input type="text" id="sCatBook"></div>
+          <div class="field"><label for="sCatProd">Google product category · altri prodotti</label><input type="text" id="sCatProd"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Prodotti nei feed</h2>
+        <div id="feedCounts" class="hint"></div>
+        <div class="field"><label for="pvSearch">Anteprima di un prodotto</label><input type="search" id="pvSearch" placeholder="Cerca per titolo o artista (solo prodotti idonei)"></div>
+        <div class="cols2" id="pv"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="drawer-bg" id="dbg"></div>
+<aside class="drawer" id="drawer" aria-label="Regola">
+  <header><h2 id="dTitle" style="margin:0;flex:1">Regola</h2><button class="btn sm" id="dClose">Chiudi</button></header>
+  <div class="body">
+    <div class="field"><label for="dName">Nome</label><input type="text" id="dName"></div>
+    <div>
+      <div class="lbl">Si applica ai prodotti che soddisfano tutte queste condizioni</div>
+      <div id="dConds"></div>
+      <button class="btn sm" id="dAddCond">Aggiungi condizione</button>
+      <div class="hint" id="dMatch" style="margin-top:8px"></div>
+    </div>
+    <div>
+      <div class="lbl">Cosa viene assegnato</div>
+      <div id="dActs"></div>
+      <button class="btn sm" id="dAddAct">Aggiungi valore</button>
+      <div class="hint">Nei valori puoi inserire campi tra graffe, ad esempio <span class="mono">{genre}</span>, <span class="mono">{year}</span>, <span class="mono">{label}</span>, <span class="mono">{media}</span>. Le regole sono applicate in ordine: l’ultima che assegna un campo vince, i tag si sommano.</div>
+    </div>
+    <div class="sample" id="dSample"></div>
+  </div>
+  <footer><button class="btn" id="dCancel">Annulla</button><button class="btn primary" id="dSave">Salva regola</button></footer>
+</aside>
+<div id="menuHost"></div>
+<div id="toastHost"></div>
+
+<script>
+/*ENGINE*/
+</script>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nf = new Intl.NumberFormat('it-IT');
+const pf = new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ROW_H = 30;
+const CALC = [{ key: 'tags', label: 'Tag', type: 'text', w: 160, calc: true }, ...CUSTOM_LABELS.map((k, i) => ({ key: k, label: 'Label ' + i, type: 'text', w: 120, calc: true }))];
+const ALLCOLS = [...COLUMNS, ...CALC];
+const COLBY = Object.fromEntries(ALLCOLS.map(c => [c.key, c]));
+const DEFAULT_VISIBLE = ['title', 'artist', 'label', 'year', 'genre', 'format', 'media', 'sleeve', 'price', 'stock', 'status', 'supplier', 'location', 'tags', 'custom_label_0'];
+
+const S = {
+  recs: [], view: [], filters: {}, q: '', sort: null, sel: new Set(), visible: new Set(DEFAULT_VISIBLE),
+  rules: [], settings: { ...DEFAULT_SETTINGS, feedBase: 'https://au-projects.github.io/cg-feeds/' }, meta: null,
+  db: null, facets: {}, calc: [], editing: null,
+};
+try { const v = JSON.parse(localStorage.getItem('fh.cols') || 'null'); if (Array.isArray(v) && v.length) S.visible = new Set(v); } catch (e) {}
+
+function toast(msg) {
+  const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
+  $('toastHost').replaceChildren(el); setTimeout(() => el.remove(), 2600);
+}
+
+/* ---------- routing ---------- */
+function route() {
+  const h = (location.hash || '#catalogo').slice(1);
+  const name = ['catalogo', 'regole', 'feed'].includes(h) ? h : 'catalogo';
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + name));
+  document.querySelectorAll('nav a').forEach(a => a.setAttribute('aria-current', a.dataset.view === name ? 'page' : 'false'));
+  if (name === 'regole') renderRules();
+  if (name === 'feed') renderFeed();
+  if (name === 'catalogo') renderRows();
+}
+addEventListener('hashchange', route);
+
+/* ---------- data loading ---------- */
+async function load() {
+  try {
+    const meta = await (await fetch('data/meta.json')).json();
+    S.meta = meta;
+    const parts = await Promise.all(Array.from({ length: meta.shards }, (_, i) => fetch(`data/catalog-${i}.json`).then(r => r.json())));
+    const recs = [];
+    for (const p of parts) for (const row of p.rows) {
+      const o = {}; p.cols.forEach((c, i) => { o[c] = row[i]; });
+      if (o.has_media) { o._link = 'https://…/pagina-prodotto'; o._image = 'https://…/immagine.jpg'; }
+      o.$s = [o.title, o.artist, o.label, o.catno, o.id, o.gtin, o.item_id].join(' ').toLowerCase();
+      recs.push(o);
+    }
+    S.recs = recs;
+    buildFacets();
+    recompute();
+    $('loading').hidden = true;
+    renderStats();
+  } catch (e) {
+    $('loading').textContent = 'Impossibile caricare il catalogo. Chiedi a Claude di aggiornare i dati.';
+  }
+}
+
+function buildFacets() {
+  for (const c of COLUMNS.filter(c => c.enum)) {
+    const m = new Map();
+    for (const r of S.recs) { const v = r[c.key] || ''; m.set(v, (m.get(v) || 0) + 1); }
+    S.facets[c.key] = [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }
+}
+
+function activeRules() { return sortRules(S.rules); }
+
+function recompute() {
+  const rules = activeRules();
+  for (const r of S.recs) {
+    const o = rules.length ? applyRules(r, rules) : {};
+    r.tags = (o.tags || []).join(', ');
+    for (const k of CUSTOM_LABELS) r[k] = o[k] || '';
+  }
+  applyFilters();
+}
+
+/* ---------- filters ---------- */
+function parseFilter(col, raw) {
+  raw = raw.trim();
+  if (!raw) return [];
+  const f = col.key;
+  if (raw === '=') return [{ field: f, op: 'empty' }];
+  if (raw === '!') return [{ field: f, op: 'not_empty' }];
+  if (col.type === 'num') {
+    let m;
+    if ((m = raw.match(/^(>=|<=|>|<)\s*(-?[\d.,]+)$/))) {
+      return [{ field: f, op: { '>': 'gt', '>=': 'gte', '<': 'lt', '<=': 'lte' }[m[1]], value: Number(m[2].replace(',', '.')) }];
+    }
+    if ((m = raw.match(/^(-?[\d.,]+)\s*-\s*(-?[\d.,]+)$/))) {
+      return [{ field: f, op: 'gte', value: Number(m[1].replace(',', '.')) }, { field: f, op: 'lte', value: Number(m[2].replace(',', '.')) }];
+    }
+    const n = Number(raw.replace(',', '.'));
+    return isNaN(n) ? [] : [{ field: f, op: 'eq', value: n }];
+  }
+  if (col.type === 'date') {
+    const m = raw.match(/^(>=|<=|>|<)\s*(\S+)$/);
+    if (m) return [{ field: f, op: { '>': 'gt', '>=': 'gte', '<': 'lt', '<=': 'lte' }[m[1]], value: m[2] }];
+  }
+  if (raw[0] === '=') return [{ field: f, op: 'eq', value: raw.slice(1).trim() }];
+  if (raw[0] === '!') return [{ field: f, op: 'not_contains', value: raw.slice(1).trim() }];
+  if (raw[0] === '^') return [{ field: f, op: 'starts', value: raw.slice(1).trim() }];
+  if (raw.includes('|')) return [{ field: f, op: 'in', value: raw.split('|').map(s => s.trim()).filter(Boolean) }];
+  return [{ field: f, op: 'contains', value: raw }];
+}
+
+function currentConds() {
+  const out = [];
+  for (const [k, raw] of Object.entries(S.filters)) {
+    const col = COLBY[k];
+    if (!col) continue;
+    if (col.type === 'bool') { if (raw) out.push({ field: k, op: 'eq', value: raw }); continue; }
+    if (col.enum && raw !== '') { out.push(raw === '\u0000' ? { field: k, op: 'empty' } : { field: k, op: 'eq', value: raw }); continue; }
+    out.push(...parseFilter(col, raw));
+  }
+  return out;
+}
+
+let ft = 0;
+function applyFilters(keepScroll) {
+  const conds = currentConds();
+  const q = S.q.trim().toLowerCase();
+  const terms = q ? q.split(/\s+/) : [];
+  const idx = [];
+  const recs = S.recs;
+  for (let i = 0; i < recs.length; i++) {
+    const r = recs[i];
+    if (terms.length && !terms.every(t => r.$s.includes(t))) continue;
+    if (conds.length && !matches(r, conds)) continue;
+    idx.push(i);
+  }
+  if (S.sort) {
+    const { key, dir } = S.sort;
+    const num = COLBY[key].type === 'num';
+    idx.sort((a, b) => {
+      const x = recs[a][key], y = recs[b][key];
+      const ex = x === '' || x == null, ey = y === '' || y == null;
+      if (ex || ey) return ex === ey ? 0 : ex ? 1 : -1;
+      const c = num ? x - y : String(x).localeCompare(String(y), 'it', { numeric: true });
+      return c * dir;
+    });
+  }
+  S.view = idx;
+  if (!keepScroll) $('grid').scrollTop = 0;
+  renderCount(); renderRows();
+}
+function filterSoon() { clearTimeout(ft); ft = setTimeout(applyFilters, 180); }
+
+/* ---------- grid ---------- */
+function cols() { return ALLCOLS.filter(c => S.visible.has(c.key)); }
+function totalW() { return 36 + cols().reduce((a, c) => a + c.w, 0); }
+
+function renderHead() {
+  const cs = cols();
+  const w = totalW();
+  const allSel = S.view.length && S.view.every(i => S.sel.has(S.recs[i].id));
+  const head = `<div class="r hd" style="width:${w}px"><div class="c chk"><input type="checkbox" id="selAll" aria-label="Seleziona tutti i filtrati" ${allSel ? 'checked' : ''}></div>${cs.map(c => {
+    const m = S.sort && S.sort.key === c.key ? `<span class="sortmark">${S.sort.dir > 0 ? '▲' : '▼'}</span>` : '';
+    return `<div class="c ${c.type === 'num' ? 'num' : ''} ${c.calc ? 'calc' : ''}" style="width:${c.w}px" data-sort="${c.key}" title="Ordina per ${esc(c.label)}">${esc(c.label)} ${m}</div>`;
+  }).join('')}</div>`;
+  const fl = `<div class="r fl" style="width:${w}px"><div class="c chk"></div>${cs.map(c => {
+    const v = S.filters[c.key] || '';
+    let inner;
+    if (c.type === 'bool') inner = `<select data-f="${c.key}" class="${v ? 'on' : ''}"><option value="">Tutti</option><option value="true" ${v === 'true' ? 'selected' : ''}>Sì</option><option value="false" ${v === 'false' ? 'selected' : ''}>No</option></select>`;
+    else if (c.enum) inner = `<select data-f="${c.key}" class="${v ? 'on' : ''}"><option value="">Tutti</option><option value="\u0000" ${v === '\u0000' ? 'selected' : ''}>(vuoto)</option>${(S.facets[c.key] || []).filter(([x]) => x !== '').slice(0, 400).map(([x, n]) => `<option value="${esc(x)}" ${v === x ? 'selected' : ''}>${esc(x)} (${nf.format(n)})</option>`).join('')}</select>`;
+    else inner = `<input type="text" data-f="${c.key}" value="${esc(v)}" class="${v ? 'on' : ''}" placeholder="filtra" aria-label="Filtro ${esc(c.label)}">`;
+    return `<div class="c" style="width:${c.w}px">${inner}</div>`;
+  }).join('')}</div>`;
+  $('ghead').innerHTML = head + fl;
+  $('ghead').style.width = w + 'px';
+}
+
+function cell(c, r) {
+  const v = r[c.key];
+  if (c.key === 'status') return `<span class="pill ${v === 'published' ? 'pub' : 'prv'}">${v === 'published' ? 'pubblicato' : esc(v)}</span>`;
+  if (c.key === 'tags') return v ? v.split(', ').map(t => `<span class="tag">${esc(t)}</span>`).join('') : '';
+  if (c.type === 'bool') return v ? 'Sì' : '<span class="muted">·</span>';
+  if (v == null || v === '') return '';
+  if (c.key === 'price' || c.key === 'compare' || c.key === 'cost') return pf.format(v);
+  if (c.key === 'stock') return `<span class="${v > 0 ? '' : 'stock0'}">${v}</span>`;
+  if (c.key === 'id' || c.key === 'gtin' || c.key === 'catno' || c.key === 'sku') return `<span class="mono">${esc(v)}</span>`;
+  return esc(v);
+}
+
+let raf = 0;
+function renderRows() {
+  if (!$('v-catalogo').classList.contains('on')) return;
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(() => {
+    const g = $('grid');
+    const n = S.view.length;
+    $('rows').style.height = n * ROW_H + 'px';
+    $('rows').style.width = totalW() + 'px';
+    if (!n) { $('win').innerHTML = ''; if (!$('loading').hidden) return; $('loading').hidden = false; $('loading').textContent = S.recs.length ? 'Nessun prodotto con questi filtri.' : 'Carico il catalogo…'; return; }
+    $('loading').hidden = true;
+    const headH = $('ghead').offsetHeight;
+    const start = Math.max(0, Math.floor(Math.max(0, g.scrollTop - 0) / ROW_H) - 6);
+    const cnt = Math.ceil(g.clientHeight / ROW_H) + 14;
+    const end = Math.min(n, start + cnt);
+    const cs = cols();
+    let h = '';
+    for (let k = start; k < end; k++) {
+      const r = S.recs[S.view[k]];
+      const sel = S.sel.has(r.id);
+      h += `<div class="r row ${sel ? 'sel' : ''}" data-id="${esc(r.id)}" style="width:${totalW()}px"><div class="c chk"><input type="checkbox" data-sel="${esc(r.id)}" ${sel ? 'checked' : ''} aria-label="Seleziona"></div>${cs.map(c => `<div class="c ${c.type === 'num' ? 'num' : ''}" style="width:${c.w}px" ${c.key !== 'tags' && r[c.key] ? `title="${esc(r[c.key])}"` : ''}>${cell(c, r)}</div>`).join('')}</div>`;
+    }
+    $('win').style.transform = `translateY(${start * ROW_H}px)`;
+    $('win').innerHTML = h;
+  });
+}
+$('grid').addEventListener('scroll', renderRows, { passive: true });
+addEventListener('resize', renderRows);
+
+function renderCount() {
+  $('count').innerHTML = `<b>${nf.format(S.view.length)}</b> di ${nf.format(S.recs.length)} · ${S.sel.size ? `<b>${nf.format(S.sel.size)}</b> selezionati` : 'nessuna selezione'}`;
+  $('btnBulk').disabled = !S.recs.length;
+  renderHead();
+}
+
+function renderStats() {
+  const pub = S.recs.filter(r => r.status === 'published').length;
+  const inS = S.recs.filter(r => r.stock > 0).length;
+  const d = S.meta ? new Date(S.meta.generated).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }) : '–';
+  $('stats').innerHTML = `<span><b>${nf.format(S.recs.length)}</b> listing</span><span><b>${nf.format(pub)}</b> pubblicati</span><span><b>${nf.format(inS)}</b> in stock</span><span>Catalogo del <b>${d}</b></span>`;
+}
+
+/* grid interactions */
+$('ghead').addEventListener('click', e => {
+  const s = e.target.closest('[data-sort]');
+  if (s) {
+    const k = s.dataset.sort;
+    S.sort = !S.sort || S.sort.key !== k ? { key: k, dir: 1 } : S.sort.dir === 1 ? { key: k, dir: -1 } : null;
+    applyFilters(true);
+    return;
+  }
+  if (e.target.id === 'selAll') {
+    if (e.target.checked) S.view.forEach(i => S.sel.add(S.recs[i].id)); else S.view.forEach(i => S.sel.delete(S.recs[i].id));
+    renderCount(); renderRows();
+  }
+});
+$('ghead').addEventListener('input', e => {
+  const f = e.target.dataset && e.target.dataset.f;
+  if (!f) return;
+  S.filters[f] = e.target.value;
+  e.target.classList.toggle('on', !!e.target.value);
+  filterSoon();
+});
+$('ghead').addEventListener('change', e => {
+  if (e.target.tagName === 'SELECT' && e.target.dataset.f) { S.filters[e.target.dataset.f] = e.target.value; e.target.classList.toggle('on', !!e.target.value); applyFilters(); }
+});
+$('rows').addEventListener('change', e => {
+  const id = e.target.dataset && e.target.dataset.sel;
+  if (!id) return;
+  if (e.target.checked) S.sel.add(id); else S.sel.delete(id);
+  e.target.closest('.row').classList.toggle('sel', e.target.checked);
+  renderCountOnly();
+});
+function renderCountOnly() {
+  $('count').innerHTML = `<b>${nf.format(S.view.length)}</b> di ${nf.format(S.recs.length)} · ${S.sel.size ? `<b>${nf.format(S.sel.size)}</b> selezionati` : 'nessuna selezione'}`;
+}
+$('q').addEventListener('input', e => { S.q = e.target.value; filterSoon(); });
+$('btnClear').addEventListener('click', () => { S.filters = {}; S.q = ''; $('q').value = ''; S.sel.clear(); applyFilters(); });
+$('btnHelp').addEventListener('click', e => { const h = $('help'); h.hidden = !h.hidden; e.currentTarget.setAttribute('aria-expanded', String(!h.hidden)); });
+
+/* columns menu */
+$('btnCols').addEventListener('click', e => {
+  const btn = e.currentTarget;
+  const host = $('menuHost');
+  if (host.firstChild) { host.replaceChildren(); return; }
+  const m = document.createElement('div'); m.className = 'menu';
+  const r = btn.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(r.left + scrollX, innerWidth - 230)) + 'px'; m.style.top = (r.bottom + scrollY + 6) + 'px';
+  m.innerHTML = ALLCOLS.map(c => `<label class="check" style="margin:0"><input type="checkbox" data-col="${c.key}" ${S.visible.has(c.key) ? 'checked' : ''}> ${esc(c.label)}${c.calc ? ' <span class="muted">(regole)</span>' : ''}</label>`).join('');
+  m.addEventListener('change', ev => {
+    const k = ev.target.dataset.col; if (!k) return;
+    if (ev.target.checked) S.visible.add(k); else S.visible.delete(k);
+    try { localStorage.setItem('fh.cols', JSON.stringify([...S.visible])); } catch (x) {}
+    renderHead(); renderRows();
+  });
+  host.replaceChildren(m);
+});
+document.addEventListener('click', e => { if (!e.target.closest('.menu') && e.target.id !== 'btnCols') $('menuHost').replaceChildren(); });
+
+/* CSV export of the current view */
+$('btnExport').addEventListener('click', async () => {
+  const dl = await claude.use('downloads');
+  if (!dl) { toast('Download non disponibile in questa vista'); return; }
+  const cs = cols();
+  const rows = S.view.slice(0, 60000).map(i => Object.fromEntries(cs.map(c => [c.key, S.recs[i][c.key]])));
+  const csv = '﻿' + toCsv(cs.map(c => c.key), rows);
+  try { await dl.save({ filename: 'catalogo-filtrato.csv', data: csv }); toast('File salvato'); } catch (e) { if (e && e.code !== 'declined') toast('Download non riuscito'); }
+});
+
+/* ---------- rules drawer ---------- */
+const FIELD_OPTS = COLUMNS.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join('');
+const OP_OPTS = OPS.map(o => `<option value="${o.key}">${esc(o.label)}</option>`).join('');
+const ACT_OPTS = ACTION_FIELDS.map(a => `<option value="${a.key}">${esc(a.label)}</option>`).join('');
+
+function openDrawer(rule) {
+  S.editing = JSON.parse(JSON.stringify(rule));
+  $('dTitle').textContent = rule.id ? 'Modifica regola' : 'Nuova regola';
+  $('dName').value = rule.name || '';
+  drawConds(); drawActs(); updateMatch();
+  $('dbg').classList.add('on'); $('drawer').classList.add('on');
+}
+function closeDrawer() { $('dbg').classList.remove('on'); $('drawer').classList.remove('on'); S.editing = null; }
+['dClose', 'dCancel', 'dbg'].forEach(id => $(id).addEventListener('click', closeDrawer));
+addEventListener('keydown', e => { if (e.key === 'Escape' && S.editing) closeDrawer(); });
+
+function condValueHtml(c, i) {
+  if (c.op === 'empty' || c.op === 'not_empty') return '<span class="muted" style="padding:6px 2px">–</span>';
+  const col = COLBY[c.field];
+  const val = Array.isArray(c.value) ? c.value.join('|') : (c.value ?? '');
+  if (col && col.type === 'bool') return `<select data-ci="${i}" data-k="value"><option value="true" ${String(val) === 'true' ? 'selected' : ''}>Sì</option><option value="false" ${String(val) === 'false' ? 'selected' : ''}>No</option></select>`;
+  const dl = col && col.enum ? ` list="dl-${c.field}"` : '';
+  return `<input type="text" data-ci="${i}" data-k="value" value="${esc(val)}"${dl} placeholder="${c.op === 'in' ? 'a|b|c' : 'valore'}">`;
+}
+function drawConds() {
+  const cs = S.editing.conditions;
+  const dls = [...new Set(cs.map(c => c.field))].filter(f => COLBY[f] && COLBY[f].enum).map(f => `<datalist id="dl-${f}">${(S.facets[f] || []).slice(0, 300).map(([v]) => `<option value="${esc(v)}">`).join('')}</datalist>`).join('');
+  $('dConds').innerHTML = (cs.length ? '' : '<div class="hint">Nessuna condizione: la regola vale per tutto il catalogo.</div>') + cs.map((c, i) => `<div class="erow">
+    <select data-ci="${i}" data-k="field">${FIELD_OPTS.replace(`value="${c.field}"`, `value="${c.field}" selected`)}</select>
+    <select data-ci="${i}" data-k="op">${OP_OPTS.replace(`value="${c.op}"`, `value="${c.op}" selected`)}</select>
+    ${condValueHtml(c, i)}
+    <button class="btn sm danger" data-cdel="${i}" aria-label="Rimuovi condizione">✕</button></div>`).join('') + dls;
+}
+function drawActs() {
+  const as = S.editing.actions;
+  $('dActs').innerHTML = as.map((a, i) => {
+    const def = ACTION_FIELDS.find(x => x.key === a.field) || ACTION_FIELDS[0];
+    const isBool = a.field === 'exclude_google' || a.field === 'exclude_meta';
+    const val = isBool ? `<select data-ai="${i}" data-k="value"><option value="true" selected>Sì</option></select>`
+      : `<input type="text" data-ai="${i}" data-k="value" value="${esc(a.value ?? '')}" placeholder="${esc(def.hint)}">`;
+    return `<div class="erow a"><select data-ai="${i}" data-k="field">${ACT_OPTS.replace(`value="${a.field}"`, `value="${a.field}" selected`)}</select>${val}<button class="btn sm danger" data-adel="${i}" aria-label="Rimuovi">✕</button></div>`;
+  }).join('') || '<div class="hint">Aggiungi almeno un valore da assegnare.</div>';
+}
+function updateMatch() {
+  const rule = S.editing; if (!rule) return;
+  const ms = []; let n = 0;
+  for (const r of S.recs) if (matches(r, rule.conditions)) { n++; if (ms.length < 3) ms.push(r); }
+  $('dMatch').innerHTML = `Prodotti coinvolti: <b>${nf.format(n)}</b> di ${nf.format(S.recs.length)}`;
+  const acts = rule.actions.filter(a => a.value !== '' || a.mode === 'clear');
+  $('dSample').innerHTML = ms.length && acts.length ? `<div class="lbl">Esempio sui primi prodotti</div>` + ms.map(r => `<div><span class="muted">${esc(r.artist)} – ${esc(r.title)}</span><br>${acts.map(a => `<span class="chip act">${esc(a.field)} = ${esc(template(a.value, r))}</span>`).join(' ')}</div>`).join('') : '';
+  $('dSave').disabled = !acts.length;
+}
+$('dConds').addEventListener('input', onCondEdit); $('dConds').addEventListener('change', onCondEdit);
+function onCondEdit(e) {
+  const i = e.target.dataset.ci; if (i === undefined) return;
+  const c = S.editing.conditions[i]; const k = e.target.dataset.k;
+  if (k === 'value') c.value = c.op === 'in' ? e.target.value.split('|').map(s => s.trim()).filter(Boolean) : (COLBY[c.field].type === 'num' && e.target.value !== '' && !isNaN(Number(e.target.value)) ? Number(e.target.value) : e.target.value);
+  else { c[k] = e.target.value; if (e.type === 'change') { if (k === 'field') c.value = ''; drawConds(); } }
+  if (e.type === 'change' && k === 'op') { if (c.op === 'in' && !Array.isArray(c.value)) c.value = c.value ? [c.value] : []; drawConds(); }
+  updateMatch();
+}
+$('dConds').addEventListener('click', e => { const i = e.target.dataset.cdel; if (i !== undefined) { S.editing.conditions.splice(i, 1); drawConds(); updateMatch(); } });
+$('dAddCond').addEventListener('click', () => { S.editing.conditions.push({ field: 'genre', op: 'eq', value: '' }); drawConds(); updateMatch(); });
+$('dActs').addEventListener('input', onActEdit); $('dActs').addEventListener('change', onActEdit);
+function onActEdit(e) {
+  const i = e.target.dataset.ai; if (i === undefined) return;
+  const a = S.editing.actions[i];
+  a[e.target.dataset.k] = e.target.value;
+  if (e.target.dataset.k === 'field' && e.type === 'change') { if (a.field.startsWith('exclude_')) a.value = 'true'; drawActs(); }
+  updateMatch();
+}
+$('dActs').addEventListener('click', e => { const i = e.target.dataset.adel; if (i !== undefined) { S.editing.actions.splice(i, 1); drawActs(); updateMatch(); } });
+$('dAddAct').addEventListener('click', () => { const used = new Set(S.editing.actions.map(a => a.field)); const f = ACTION_FIELDS.find(a => !used.has(a.key)) || ACTION_FIELDS[0]; S.editing.actions.push({ field: f.key, value: f.key.startsWith('exclude_') ? 'true' : '' }); drawActs(); updateMatch(); });
+
+$('dSave').addEventListener('click', async () => {
+  const r = S.editing; if (!r) return;
+  const rule = {
+    name: $('dName').value.trim() || autoName(r),
+    enabled: r.enabled !== false,
+    order: r.order ?? (S.rules.reduce((m, x) => Math.max(m, x.order ?? 0), 0) + 1),
+    conditions: r.conditions.filter(c => c.op === 'empty' || c.op === 'not_empty' || (c.value !== '' && !(Array.isArray(c.value) && !c.value.length))),
+    actions: r.actions.filter(a => a.value !== '' || a.mode === 'clear').map(a => ({ field: a.field, value: String(a.value) })),
+  };
+  closeDrawer();
+  await saveRule(r.id, rule);
+  toast('Regola salvata');
+});
+function autoName(r) {
+  const c = r.conditions[0];
+  const base = c ? `${COLBY[c.field].label} ${(OPS.find(o => o.key === c.op) || {}).label || ''} ${Array.isArray(c.value) ? c.value.join('/') : c.value ?? ''}`.trim() : 'Tutto il catalogo';
+  return base + (r.conditions.length > 1 ? ` +${r.conditions.length - 1}` : '');
+}
+
+/* ---------- persistence ---------- */
+async function saveRule(id, rule) {
+  if (S.db) {
+    try {
+      const ref = id ? S.db.collection('rules').doc(id) : S.db.collection('rules').doc();
+      await ref.set(rule);
+      return;
+    } catch (e) { toast('Salvataggio non riuscito: la regola vale solo in questa sessione'); }
+  }
+  const local = { ...rule, id: id || 'local-' + Date.now() };
+  S.rules = [...S.rules.filter(x => x.id !== local.id), local];
+  recompute(); renderRules();
+}
+async function deleteRule(id) {
+  if (S.db) { try { await S.db.collection('rules').doc(id).delete(); return; } catch (e) { toast('Eliminazione non riuscita'); } }
+  S.rules = S.rules.filter(x => x.id !== id); recompute(); renderRules();
+}
+async function patchRule(r, patch) { await saveRule(r.id, { ...stripId(r), ...patch }); }
+const stripId = r => { const { id, ...rest } = r; return rest; };
+
+/* bulk edit from the catalog */
+$('btnBulk').addEventListener('click', () => {
+  let conds = currentConds();
+  const usesCalc = Object.keys(S.filters).some(k => S.filters[k] && COLBY[k] && COLBY[k].calc);
+  if (usesCalc) { toast('I filtri su tag e label non si possono trasformare in regola. Toglili e riprova.'); return; }
+  const q = S.q.trim();
+  if (q) conds = [...conds, ...q.split(/\s+/).map(t => ({ field: 'title', op: 'contains', value: t }))];
+  let note = '';
+  if (S.sel.size) {
+    if (S.sel.size > 1500) { toast('Seleziona al massimo 1.500 righe, oppure usa i filtri.'); return; }
+    conds = [{ field: 'id', op: 'in', value: [...S.sel] }];
+    note = `${S.sel.size} prodotti selezionati`;
+  }
+  openDrawer({ name: note || '', conditions: conds, actions: [{ field: 'custom_label_0', value: '' }] });
+});
+$('btnNewRule').addEventListener('click', () => openDrawer({ name: '', conditions: [], actions: [{ field: 'custom_label_0', value: '' }] }));
+
+/* ---------- rules view ---------- */
+function condChip(c) {
+  const op = (OPS.find(o => o.key === c.op) || {}).label || c.op;
+  const v = c.op === 'empty' || c.op === 'not_empty' ? '' : Array.isArray(c.value) ? (c.value.length > 4 ? c.value.length + ' valori' : c.value.join(' | ')) : c.value;
+  return `<span class="chip">${esc((COLBY[c.field] || {}).label || c.field)} ${esc(op)} ${esc(v)}</span>`;
+}
+function renderRules() {
+  const rules = activeRules();
+  $('rulesInfo').textContent = rules.length ? `${rules.length} regole, applicate dall’alto verso il basso` : '';
+  if (!rules.length) {
+    $('rulesList').innerHTML = `<div class="panel empty">Nessuna regola. Dal Catalogo filtra un gruppo di prodotti e premi «Modifica in blocco», oppure crea una regola da qui.<br><br>Esempio: genere = Jazz e prezzo ≥ 20 → custom label 0 = «jazz-premium».</div>`;
+    return;
+  }
+  $('rulesList').innerHTML = rules.map((r, i) => {
+    let n = 0; for (const x of S.recs) if (matches(x, r.conditions || [])) n++;
+    const del = S.confirmDel === r.id;
+    return `<div class="panel rule ${r.enabled === false ? 'off' : ''}">
+      <input type="checkbox" data-en="${r.id}" ${r.enabled === false ? '' : 'checked'} aria-label="Attiva regola">
+      <div><h3>${esc(r.name)}</h3><div class="chips">${(r.conditions || []).map(condChip).join('') || '<span class="chip">Tutto il catalogo</span>'}</div>
+        <div class="chips">${(r.actions || []).map(a => `<span class="chip act">${esc(a.field)} = ${esc(a.value)}</span>`).join('')}</div>
+        <div class="hint" style="margin:6px 0 0"><b>${nf.format(n)}</b> prodotti</div></div>
+      <div class="actions">
+        <button class="btn sm" data-up="${r.id}" ${i === 0 ? 'disabled' : ''} aria-label="Sposta su">▲</button>
+        <button class="btn sm" data-down="${r.id}" ${i === rules.length - 1 ? 'disabled' : ''} aria-label="Sposta giù">▼</button>
+        <button class="btn sm" data-edit="${r.id}">Modifica</button>
+        <button class="btn sm danger" data-del="${r.id}">${del ? 'Conferma elimina' : 'Elimina'}</button>
+      </div></div>`;
+  }).join('');
+}
+$('rulesList').addEventListener('click', async e => {
+  const t = e.target, rules = activeRules();
+  const find = id => rules.find(r => r.id === id);
+  if (t.dataset.edit) openDrawer(find(t.dataset.edit));
+  else if (t.dataset.del) {
+    if (S.confirmDel === t.dataset.del) { S.confirmDel = null; await deleteRule(t.dataset.del); toast('Regola eliminata'); }
+    else { S.confirmDel = t.dataset.del; renderRules(); setTimeout(() => { S.confirmDel = null; if ($('v-regole').classList.contains('on')) renderRules(); }, 4000); }
+  } else if (t.dataset.up || t.dataset.down) {
+    const id = t.dataset.up || t.dataset.down; const i = rules.findIndex(r => r.id === id); const j = t.dataset.up ? i - 1 : i + 1;
+    if (j < 0 || j >= rules.length) return;
+    const a = rules[i], b = rules[j];
+    const oa = a.order ?? i, ob = b.order ?? j;
+    await patchRule(a, { order: ob === oa ? ob + (j > i ? 1 : -1) : ob }); await patchRule(b, { order: oa });
+  }
+});
+$('rulesList').addEventListener('change', e => {
+  const id = e.target.dataset.en; if (!id) return;
+  patchRule(S.rules.find(r => r.id === id), { enabled: e.target.checked });
+});
+
+/* ---------- feed view ---------- */
+function saveSettings() {
+  if (S.db) S.db.doc('settings/main').set(S.settings).catch(() => toast('Impostazioni non salvate'));
+}
+function bindSetting(id, key, kind) {
+  const el = $(id);
+  el.addEventListener(kind === 'check' ? 'change' : 'input', () => {
+    S.settings[key] = kind === 'check' ? el.checked : el.value;
+    saveSettings(); renderFeed(true);
+  });
+}
+[['sCur', 'currency'], ['sLang', 'lang'], ['sCatRel', 'googleCategoryRelease'], ['sCatBook', 'googleCategoryBook'], ['sCatProd', 'googleCategoryProduct'], ['feedBase', 'feedBase']].forEach(([i, k]) => bindSetting(i, k));
+[['sOos', 'includeOutOfStock'], ['sPriv', 'includePrivate'], ['sTitleCond', 'titleCondition']].forEach(([i, k]) => bindSetting(i, k, 'check'));
+document.addEventListener('click', e => {
+  const id = e.target.dataset && e.target.dataset.copy; if (!id) return;
+  const el = $(id); el.select();
+  (navigator.clipboard ? navigator.clipboard.writeText(el.value) : Promise.reject()).then(() => toast('Link copiato'), () => toast('Seleziona e copia il link'));
+});
+
+let pvTimer = 0;
+function renderFeed(soft) {
+  const s = S.settings;
+  const set = (id, v) => { const el = $(id); if (document.activeElement !== el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } };
+  set('sCur', s.currency); set('sLang', s.lang); set('sOos', s.includeOutOfStock); set('sPriv', s.includePrivate); set('sTitleCond', s.titleCondition);
+  set('sCatRel', s.googleCategoryRelease); set('sCatBook', s.googleCategoryBook); set('sCatProd', s.googleCategoryProduct); set('feedBase', s.feedBase);
+  const base = (s.feedBase || '').replace(/\/?$/, '/');
+  $('uGoogle').value = base + 'google.tsv'; $('uMeta').value = base + 'meta.csv';
+  $('genInfo').innerHTML = S.meta ? `<dt>catalogo</dt><dd>${new Date(S.meta.generated).toLocaleString('it-IT')}</dd><dt>listing</dt><dd>${nf.format(S.meta.count)}</dd><dt>regole</dt><dd>${S.rules.filter(r => r.enabled !== false).length} attive</dd>` : '';
+  clearTimeout(pvTimer); pvTimer = setTimeout(drawFeedCounts, soft ? 250 : 0);
+}
+function drawFeedCounts() {
+  if (!$('v-feed').classList.contains('on')) return;
+  const rules = activeRules();
+  let g = 0, m = 0, oos = 0, eg = 0, em = 0;
+  const sample = [], q = $('pvSearch').value.trim().toLowerCase();
+  for (const r of S.recs) {
+    const o = applyRules(r, rules);
+    const a = feedRow(r, o, S.settings, 'google'), b = feedRow(r, o, S.settings, 'meta');
+    if (a) g++; if (b) m++;
+    if (r.status === 'published' && !(r.stock > 0)) oos++;
+    if (String(o.exclude_google) === 'true') eg++; if (String(o.exclude_meta) === 'true') em++;
+    if ((a || b) && sample.length < 2 && (!q || r.$s.includes(q))) sample.push([a, b, o]);
+  }
+  $('feedCounts').innerHTML = `Google: <b>${nf.format(g)}</b> prodotti · Meta: <b>${nf.format(m)}</b> prodotti. Esauriti ${S.settings.includeOutOfStock ? 'inclusi' : 'esclusi'}: ${nf.format(oos)}. Esclusi da regola: Google ${nf.format(eg)}, Meta ${nf.format(em)}.`;
+  const kv = row => row ? `<dl class="kv">${Object.entries(row).filter(([, v]) => v !== '' && v != null).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : '<span class="muted">Nessun prodotto</span>';
+  const first = sample[0];
+  $('pv').innerHTML = first ? `<div class="panel" style="background:var(--bg)"><h2>Riga Google</h2>${kv(first[0])}</div><div class="panel" style="background:var(--bg)"><h2>Riga Meta</h2>${kv(first[1])}</div>` : '<div class="muted">Nessun prodotto idoneo con questa ricerca.</div>';
+}
+$('pvSearch').addEventListener('input', () => { clearTimeout(pvTimer); pvTimer = setTimeout(drawFeedCounts, 250); });
+
+/* ---------- boot ---------- */
+async function connectDb() {
+  let db = null;
+  try { db = await claude.use('db'); } catch (e) {}
+  if (!db) return;
+  S.db = db;
+  db.collection('rules').onSnapshot(snap => {
+    S.rules = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    recompute(); if ($('v-regole').classList.contains('on')) renderRules(); if ($('v-feed').classList.contains('on')) renderFeed(true);
+  }, () => {});
+  db.doc('settings/main').onSnapshot(d => {
+    if (d.exists) { S.settings = { ...S.settings, ...d.data() }; if ($('v-feed').classList.contains('on')) renderFeed(true); }
+  }, () => {});
+}
+
+renderHead();
+route();
+load().then(connectDb);
+})();
+</script>
