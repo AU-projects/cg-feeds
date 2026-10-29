@@ -220,8 +220,15 @@ export function applyRules(rec, rules) {
     if (!matches(target, conds)) continue;
     for (const a of rule.actions || []) {
       if (a.field === 'tags') {
-        const t = template(a.value, rec).split(',').map(x => x.trim()).filter(Boolean);
-        out.tags = [...new Set([...(out.tags || []), ...t])];
+        const cur = out.tags || [];
+        if (a.mode === 'remove_all') out.tags = [];
+        else if (a.mode === 'remove') {
+          const rm = new Set(template(a.value, rec).split(',').map(x => x.trim().toLowerCase()).filter(Boolean));
+          out.tags = cur.filter(t => !rm.has(t.toLowerCase()));
+        } else {
+          const t = template(a.value, rec).split(',').map(x => x.trim()).filter(Boolean);
+          out.tags = [...new Set([...cur, ...t])];
+        }
       } else if (a.mode === 'clear') {
         out[a.field] = '';
       } else {
