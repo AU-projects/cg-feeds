@@ -8,6 +8,8 @@ import { DEFAULT_SETTINGS, feedRow, GOOGLE_COLS, META_COLS, toTsv } from './lib/
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const csvPath = arg('csv', 'data/export.csv');
+const only = arg('only', 'all'); // all | feeds | artifact
+const snap = existsSync('data/snapshot.json') ? JSON.parse(readFileSync('data/snapshot.json', 'utf8')) : {};
 const readJson = (p, d) => existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : d;
 const rules = sortRules(readJson(arg('rules', 'data/rules.json'), []));
 const settings = { ...DEFAULT_SETTINGS, ...readJson(arg('settings', 'data/settings.json'), {}) };
@@ -16,22 +18,25 @@ const recs = parseCsv(readFileSync(csvPath, 'utf8')).filter(r => r.listing_id).m
 console.error(recs.length, 'listings,', rules.length, 'rules');
 
 const google = [], meta = [];
-for (const r of recs) {
-  const o = applyRules(r, rules);
-  const g = feedRow(r, o, settings, 'google'); if (g) google.push(g);
-  const m = feedRow(r, o, settings, 'meta'); if (m) meta.push(m);
-}
-
-writeFileSync('google.tsv', toTsv(GOOGLE_COLS, google));
-writeFileSync('meta.csv', toCsv(META_COLS, meta));
-const generated = new Date().toISOString();
-writeFileSync('report.json', JSON.stringify({ generated, listings: recs.length, google: google.length, meta: meta.length, rules: rules.length }, null, 1));
-writeFileSync('index.html', `<!doctype html><meta charset="utf-8"><title>Feed catalogo</title><body style="font:16px system-ui;margin:2rem">
-<h1>Feed catalogo</h1><p>Aggiornati: ${generated}</p>
+if (only !== 'artifact') {
+  for (const r of recs) {
+    const o = applyRules(r, rules);
+    const g = feedRow(r, o, settings, 'google'); if (g) google.push(g);
+    const m = feedRow(r, o, settings, 'meta'); if (m) meta.push(m);
+  }
+  writeFileSync('google.tsv', toTsv(GOOGLE_COLS, google));
+  writeFileSync('meta.csv', toCsv(META_COLS, meta));
+  const generated = new Date().toISOString();
+  writeFileSync('report.json', JSON.stringify({ generated, catalogAt: snap.at || null, listings: recs.length, google: google.length, meta: meta.length, rules: rules.length }, null, 1));
+  writeFileSync('index.html', `<!doctype html><meta charset="utf-8"><title>Feed catalogo</title><body style="font:16px system-ui;margin:2rem">
+<h1>Feed catalogo</h1><p>Aggiornati: ${generated}<br>Catalogo importato: ${snap.at || 'n/d'}</p>
 <ul><li><a href="google.tsv">google.tsv</a> (${google.length} prodotti)</li><li><a href="meta.csv">meta.csv</a> (${meta.length} prodotti)</li></ul></body>`);
+  console.error('google', google.length, 'meta', meta.length);
+}
 
 // Catalog shards for the app: columnar JSON, no feed-only fields.
 // Feed-only fields reduced to what the page needs to decide eligibility and preview rows.
+if (only === 'feeds') process.exit(0);
 const keys = [...COLUMNS.map(c => c.key), 'has_media', '_mediaFull', '_sleeveFull', '_available'];
 for (const r of recs) { r.has_media = r._link && r._image ? 1 : 0; if (!r.pre_order) r._available = ''; }
 const SHARD = 12000;
@@ -41,5 +46,5 @@ for (let i = 0; i < shards; i++) {
   const rows = recs.slice(i * SHARD, (i + 1) * SHARD).map(r => keys.map(k => r[k]));
   writeFileSync(`artifact/data/catalog-${i}.json`, JSON.stringify({ cols: keys, rows }));
 }
-writeFileSync('artifact/data/meta.json', JSON.stringify({ generated, count: recs.length, shards }));
-console.error('google', google.length, 'meta', meta.length, 'shards', shards);
+writeFileSync('artifact/data/meta.json', JSON.stringify({ generated: snap.at || new Date().toISOString(), count: recs.length, shards }));
+console.error('shards', shards);
