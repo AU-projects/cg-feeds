@@ -315,7 +315,23 @@ const S = {
   rules: [], settings: { ...DEFAULT_SETTINGS, feedBase: 'https://au-projects.github.io/cg-feeds/' }, meta: null,
   db: null, facets: {}, calc: [], editing: null,
 };
-try { const v = JSON.parse(localStorage.getItem('fh.cols4') || 'null'); if (Array.isArray(v) && v.length) S.visible = new Set(v); } catch (e) {}
+// The column choice is kept in the browser and in the database (settings/columns), so it survives updates and follows the user across devices.
+// Never rename COLS_KEY: older names are only read once, to carry the previous choice over.
+const COLS_KEY = 'fh.columns';
+(function () {
+  for (const k of [COLS_KEY, 'fh.cols4', 'fh.cols3', 'fh.cols2', 'fh.cols']) {
+    try {
+      const v = JSON.parse(localStorage.getItem(k) || 'null');
+      const ok = Array.isArray(v) ? v.filter(x => ALLCOLS.some(c => c.key === x)) : [];
+      if (ok.length) { S.visible = new Set(ok); return; }
+    } catch (e) {}
+  }
+})();
+function saveCols() {
+  const arr = [...S.visible];
+  try { localStorage.setItem(COLS_KEY, JSON.stringify(arr)); } catch (e) {}
+  if (S.db) S.db.doc('settings/columns').set({ visible: arr, updatedAt: new Date().toISOString() }).catch(() => {});
+}
 
 function toast(msg) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
@@ -633,7 +649,7 @@ $('btnCols').addEventListener('click', e => {
   m.addEventListener('change', ev => {
     const k = ev.target.dataset.col; if (!k) return;
     if (ev.target.checked) S.visible.add(k); else S.visible.delete(k);
-    try { localStorage.setItem('fh.cols4', JSON.stringify([...S.visible])); } catch (x) {}
+    saveCols();
     renderHead(); renderRows();
   });
   host.replaceChildren(m);
@@ -1176,6 +1192,15 @@ async function connectDb() {
   db.collection('rules').onSnapshot(snap => {
     S.rules = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     scheduleRecompute(); if ($('v-regole').classList.contains('on')) renderRules(); if ($('v-feed').classList.contains('on')) renderFeed(true);
+  }, () => {});
+  db.doc('settings/columns').onSnapshot(d => {
+    if (!d.exists) { saveCols(); return; } // first time: store the current choice
+    const v = (d.data().visible || []).filter(k => COLBY[k]);
+    if (v.length && [...v].sort().join() !== [...S.visible].sort().join()) {
+      S.visible = new Set(v);
+      try { localStorage.setItem(COLS_KEY, JSON.stringify(v)); } catch (e) {}
+      renderHead(); renderRows();
+    }
   }, () => {});
   db.doc('settings/schedule').onSnapshot(d => {
     S.schedInfo = d.exists ? d.data() : null;
