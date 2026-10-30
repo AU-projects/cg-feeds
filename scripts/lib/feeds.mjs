@@ -10,6 +10,10 @@ export const DEFAULT_SETTINGS = {
   googleCategoryBook: 'Media > Books',
   googleCategoryProduct: '',
   defaultBrand: 'Kagoshima Records',
+  // Meta only supports "in stock" and "out of stock" for availability.
+  metaPreorder: 'in stock', // in stock | out of stock | exclude
+  metaQuantity: false, // quantity_to_sell_on_facebook: only useful with Facebook/Instagram checkout
+  sendItemGroupId: false, // item_group_id is for variants (size, colour...), not for copies in different condition
 };
 
 const T = {
@@ -50,10 +54,12 @@ export function feedStatus(r, o, s, channel) {
   s = { ...DEFAULT_SETTINGS, ...s };
   if (r.status !== 'published' && !(s.includePrivate && r.status === 'private')) return 'non pubblicato';
   if (String(o['exclude_' + channel]).toLowerCase() === 'true') return 'escluso da regola';
+  if (channel === 'meta' && s.metaPreorder === 'exclude' && r.pre_order && r._available && r._available > new Date().toISOString().slice(0, 10)) return 'preordine (escluso da Meta)';
   if (!s.includeOutOfStock && !(r.stock > 0)) return 'esaurito';
   const price = o.price_feed !== undefined && o.price_feed !== '' ? Number(o.price_feed) : r.price;
   if (!(price > 0)) return 'prezzo zero';
   if (!r._image || !r._link) return 'senza immagine';
+  if (channel === 'meta' && r._imgBad) return 'immagine non supportata da Meta';
   return '';
 }
 
@@ -66,8 +72,11 @@ export function feedValues(r, o, s, channel, withDescription = true) {
   const inStock = r.stock > 0;
   const preorder = r.pre_order && r._available && r._available > new Date().toISOString().slice(0, 10);
   const g = channel === 'google';
-  const availability = preorder ? 'preorder' : inStock ? (g ? 'in_stock' : 'in stock') : (g ? 'out_of_stock' : 'out of stock');
-  const condition = clean(o.condition_feed) || (r.second_hand ? 'used' : 'new');
+  const availability = g
+    ? (preorder ? 'preorder' : inStock ? 'in_stock' : 'out_of_stock')
+    : (preorder ? (s.metaPreorder === 'out of stock' ? 'out of stock' : 'in stock') : inStock ? 'in stock' : 'out of stock');
+  let condition = clean(o.condition_feed) || (r.second_hand ? 'used' : 'new');
+  if (!g && condition === 'refurbished') condition = 'used'; // Meta supports only new and used
   const cat = o.google_category || (r.type === 'Release' ? s.googleCategoryRelease
     : r.type === 'Book' ? s.googleCategoryBook : s.googleCategoryProduct);
   const productType = o.product_type_feed || ['Vinili', r.genre].filter(Boolean).join(' > ');
@@ -83,10 +92,10 @@ export function feedValues(r, o, s, channel, withDescription = true) {
     sale_price: onSale ? money(price, s.currency) : '',
     link: r._link,
     image_link: r._image,
-    brand: clean(o.brand) || r.label || r.manufacturer || r.artist || s.defaultBrand,
+    brand: (clean(o.brand) || r.label || r.manufacturer || r.artist || s.defaultBrand).slice(0, 100),
     gtin: r.gtin,
     mpn: r.catno,
-    item_group_id: r.item_id,
+    item_group_id: s.sendItemGroupId ? r.item_id : '',
     google_product_category: cat,
     product_type: productType,
     shipping_weight: r.weight ? r.weight + ' g' : '',
@@ -95,7 +104,11 @@ export function feedValues(r, o, s, channel, withDescription = true) {
   if (preorder && g) row.availability_date = r._available + 'T00:00+00:00';
   if (g) row.identifier_exists = r.gtin || r.catno ? 'yes' : 'no';
   if (!g) row.quantity_to_sell_on_facebook = Math.max(0, r.stock || 0);
-  for (let i = 0; i < 5; i++) row['custom_label_' + i] = clean(o['custom_label_' + i]);
+  for (let i = 0; i < 5; i++) {
+    const label = clean(o['custom_label_' + i]);
+    row['custom_label_' + i] = label.slice(0, 100);
+    if (!g) row['product_tags[' + i + ']'] = label.slice(0, 110); // Meta's version of custom labels
+  }
   return row;
 }
 
@@ -109,9 +122,15 @@ export const GOOGLE_COLS = ['id', 'title', 'description', 'link', 'image_link', 
   'condition', 'brand', 'gtin', 'mpn', 'identifier_exists', 'item_group_id', 'google_product_category', 'product_type',
   'shipping_weight', 'custom_label_0', 'custom_label_1', 'custom_label_2', 'custom_label_3', 'custom_label_4'];
 
-export const META_COLS = ['id', 'title', 'description', 'availability', 'condition', 'price', 'sale_price', 'link', 'image_link', 'brand',
-  'google_product_category', 'product_type', 'gtin', 'mpn', 'item_group_id', 'quantity_to_sell_on_facebook', 'shipping_weight',
-  'custom_label_0', 'custom_label_1', 'custom_label_2', 'custom_label_3', 'custom_label_4'];
+// Columns of Meta's official catalog template (xlsx exported from Commerce Manager) that we fill.
+// Custom labels 0-4 are sent as product_tags[0-4], the field Meta uses to build product sets.
+export function metaCols(s) {
+  s = { ...DEFAULT_SETTINGS, ...s };
+  return ['id', 'title', 'description', 'availability', 'condition', 'price', 'link', 'image_link', 'brand', 'google_product_category',
+    ...(s.metaQuantity ? ['quantity_to_sell_on_facebook'] : []), 'sale_price',
+    ...(s.sendItemGroupId ? ['item_group_id'] : []), 'shipping_weight', 'gtin',
+    'product_tags[0]', 'product_tags[1]', 'product_tags[2]', 'product_tags[3]', 'product_tags[4]'];
+}
 
 export function toTsv(cols, rows) {
   const e = v => (v == null ? '' : String(v)).replace(/[\t\r\n]+/g, ' ');

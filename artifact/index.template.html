@@ -231,6 +231,10 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
           <label class="check"><input type="checkbox" id="sOos"> Includi i prodotti esauriti</label>
           <label class="check"><input type="checkbox" id="sPriv"> Includi i prodotti privati</label>
           <label class="check"><input type="checkbox" id="sTitleCond"> Aggiungi le condizioni (es. [NM/VG+]) al titolo dei prodotti usati</label>
+          <div class="field"><label for="sMetaPre">Preordini nel feed Meta</label><select id="sMetaPre"><option value="in stock">Inviali come «in stock»</option><option value="out of stock">Inviali come «out of stock»</option><option value="exclude">Escludili dal feed Meta</option></select></div>
+          <div class="hint" style="margin-top:-6px">Meta accetta solo «in stock» e «out of stock». Google continua a ricevere «preorder».</div>
+          <label class="check"><input type="checkbox" id="sMetaQty"> Invia a Meta la quantità (solo se vendi con checkout su Facebook o Instagram)</label>
+          <label class="check"><input type="checkbox" id="sGroup"> Raggruppa le copie dello stesso disco come varianti (item_group_id)</label>
           <div class="field"><label for="sCatRel">Google product category · dischi</label><input type="text" id="sCatRel"></div>
           <div class="field"><label for="sCatBook">Google product category · libri</label><input type="text" id="sCatBook"></div>
           <div class="field"><label for="sCatProd">Google product category · altri prodotti</label><input type="text" id="sCatProd"></div>
@@ -899,8 +903,8 @@ function bindSetting(id, key, kind) {
     saveSettings(); renderFeed(true); scheduleRecompute();
   });
 }
-[['sCur', 'currency'], ['sLang', 'lang'], ['sCatRel', 'googleCategoryRelease'], ['sCatBook', 'googleCategoryBook'], ['sCatProd', 'googleCategoryProduct'], ['feedBase', 'feedBase']].forEach(([i, k]) => bindSetting(i, k));
-[['sOos', 'includeOutOfStock'], ['sPriv', 'includePrivate'], ['sTitleCond', 'titleCondition']].forEach(([i, k]) => bindSetting(i, k, 'check'));
+[['sCur', 'currency'], ['sLang', 'lang'], ['sMetaPre', 'metaPreorder'], ['sCatRel', 'googleCategoryRelease'], ['sCatBook', 'googleCategoryBook'], ['sCatProd', 'googleCategoryProduct'], ['feedBase', 'feedBase']].forEach(([i, k]) => bindSetting(i, k));
+[['sOos', 'includeOutOfStock'], ['sPriv', 'includePrivate'], ['sTitleCond', 'titleCondition'], ['sMetaQty', 'metaQuantity'], ['sGroup', 'sendItemGroupId']].forEach(([i, k]) => bindSetting(i, k, 'check'));
 document.addEventListener('click', e => {
   const id = e.target.dataset && e.target.dataset.copy; if (!id) return;
   const el = $(id); el.select();
@@ -911,7 +915,7 @@ let pvTimer = 0;
 function renderFeed(soft) {
   const s = S.settings;
   const set = (id, v) => { const el = $(id); if (document.activeElement !== el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } };
-  set('sCur', s.currency); set('sLang', s.lang); set('sOos', s.includeOutOfStock); set('sPriv', s.includePrivate); set('sTitleCond', s.titleCondition);
+  set('sCur', s.currency); set('sLang', s.lang); set('sMetaPre', s.metaPreorder); set('sMetaQty', s.metaQuantity); set('sGroup', s.sendItemGroupId); set('sOos', s.includeOutOfStock); set('sPriv', s.includePrivate); set('sTitleCond', s.titleCondition);
   set('sCatRel', s.googleCategoryRelease); set('sCatBook', s.googleCategoryBook); set('sCatProd', s.googleCategoryProduct); set('feedBase', s.feedBase);
   const base = (s.feedBase || '').replace(/\/?$/, '/');
   $('uGoogle').value = base + 'google.tsv'; $('uMeta').value = base + 'meta.csv';

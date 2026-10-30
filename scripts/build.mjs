@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { parseCsv, toCsv } from './lib/csv.mjs';
 import { COLUMNS, normalize, applyRules, sortRules, linkToSlug } from './lib/model.mjs';
-import { DEFAULT_SETTINGS, feedRow, GOOGLE_COLS, META_COLS, toTsv } from './lib/feeds.mjs';
+import { DEFAULT_SETTINGS, feedRow, GOOGLE_COLS, metaCols, toTsv } from './lib/feeds.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const csvPath = arg('csv', 'data/export.csv');
@@ -25,7 +25,7 @@ if (only !== 'artifact') {
     const m = feedRow(r, o, settings, 'meta'); if (m) meta.push(m);
   }
   writeFileSync('google.tsv', toTsv(GOOGLE_COLS, google));
-  writeFileSync('meta.csv', toCsv(META_COLS, meta));
+  writeFileSync('meta.csv', toCsv(metaCols(settings), meta));
   const generated = new Date().toISOString();
   writeFileSync('report.json', JSON.stringify({ generated, catalogAt: snap.at || null, listings: recs.length, google: google.length, meta: meta.length, rules: rules.length }, null, 1));
   writeFileSync('index.html', `<!doctype html><meta charset="utf-8"><title>Feed catalogo</title><body style="font:16px system-ui;margin:2rem">
@@ -37,7 +37,7 @@ if (only !== 'artifact') {
 // Catalog shards for the app: columnar JSON, no feed-only fields.
 // Feed-only fields reduced to what the page needs to decide eligibility and preview rows.
 if (only === 'feeds') process.exit(0);
-const keys = [...COLUMNS.map(c => c.key).filter(k => k !== 'link'), 'slug', 'has_media', '_mediaFull', '_sleeveFull', '_available'];
+const keys = [...COLUMNS.map(c => c.key).filter(k => k !== 'link'), 'slug', 'has_media', '_imgBad', '_mediaFull', '_sleeveFull', '_available'];
 for (const r of recs) { r.slug = linkToSlug(r); r.has_media = r._link && r._image ? 1 : 0; if (!r.pre_order) r._available = ''; }
 const SHARD = 12000;
 mkdirSync('artifact/data', { recursive: true });

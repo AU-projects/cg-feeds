@@ -149,6 +149,7 @@ export function normalize(r) {
     link: r.item_eshop_link || '',
     _link: r.item_eshop_link,
     _image: r.item_image_link,
+    _imgBad: /\.(webp|avif|svg|heic|bmp|tiff?)(\?|$)/i.test(r.item_image_link || '') ? 1 : 0,
     _available: (r.listing_available_date || '').slice(0, 10),
     _long: r.item_long_description || '',
     _mediaFull: r.listing_media_condition || '',
