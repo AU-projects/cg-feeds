@@ -215,8 +215,16 @@ function matchOne(rec, { field, op, value }) {
   return true;
 }
 
+// {field} copies a column; {field:ym} / {field:y} keep year-month / year of a date; :upper and :lower change the case.
 export function template(str, rec) {
-  return String(str).replace(/\{(\w+)\}/g, (_, k) => (rec[k] == null ? '' : String(rec[k])));
+  return String(str).replace(/\{(\w+)(?::(\w+))?\}/g, (_, k, f) => {
+    let v = rec[k] == null ? '' : String(rec[k]);
+    if (f === 'ym') v = v.slice(0, 7);
+    else if (f === 'y') v = v.slice(0, 4);
+    else if (f === 'upper') v = v.toUpperCase();
+    else if (f === 'lower') v = v.toLowerCase();
+    return v;
+  });
 }
 
 export const COMPUTED = ['tags', ...CUSTOM_LABELS];

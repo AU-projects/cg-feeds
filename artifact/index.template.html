@@ -153,6 +153,9 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
 .drawer > footer { border-top: 1px solid var(--line); border-bottom: 0; justify-content: flex-end; padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)); }
 .drawer .body { padding: 16px 18px; overflow: auto; flex: 1; display: grid; gap: 18px; align-content: start; }
 .erow { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(100px, .8fr) minmax(110px, 1.3fr) auto; gap: 6px; margin-bottom: 6px; }
+.valcell { display: flex; gap: 4px; min-width: 0; }
+.valcell input { flex: 1; min-width: 0; }
+.valcell select { width: 88px; flex: none; }
 .erow.a { grid-template-columns: minmax(120px, 1fr) minmax(100px, .75fr) minmax(130px, 1.3fr) auto; }
 .erow > * { min-width: 0; }
 .hint { font-size: 12px; color: var(--muted); margin: 2px 0 8px; }
@@ -269,7 +272,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
       <div class="lbl">Cosa viene assegnato</div>
       <div id="dActs"></div>
       <button class="btn sm" id="dAddAct">Aggiungi valore</button>
-      <div class="hint">Nei valori puoi inserire campi tra graffe, ad esempio <span class="mono">{genre}</span>, <span class="mono">{year}</span>, <span class="mono">{label}</span>, <span class="mono">{media}</span>. Le voci sono applicate in ordine dall’alto: l’ultima che assegna un campo vince, i tag si sommano, «Rimuovi» toglie i tag aggiunti dalle voci sopra.</div>
+      <div class="hint">Per copiare il valore di una colonna usa il menu <b>+ campo</b>: ad esempio <span class="mono">{published:ym}</span> inserisce anno e mese di pubblicazione, <span class="mono">{genre}</span> il genere. Puoi combinarli con testo libero, come <span class="mono">nuovo-{published:ym}</span>. Le voci sono applicate in ordine dall’alto: l’ultima che assegna un campo vince, i tag si sommano, «Rimuovi» toglie i tag aggiunti dalle voci sopra.</div>
     </div>
     <div class="sample" id="dSample"></div>
   </div>
@@ -693,6 +696,9 @@ function drawConds() {
     ${condValueHtml(c, i)}
     <button class="btn sm danger" data-cdel="${i}" aria-label="Rimuovi condizione">✕</button></div>`).join('') + dls;
 }
+const INSERT_OPTS = '<option value="">+ campo</option>' + COLUMNS.flatMap(c => c.type === 'date'
+  ? [[c.key, c.label], [c.key + ':ym', c.label + ' (anno-mese)'], [c.key + ':y', c.label + ' (anno)']] : [[c.key, c.label]])
+  .map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('');
 const defMode = f => (f === 'tags' ? 'add' : 'set');
 const MODES = f => (f === 'tags' ? [['add', 'Aggiungi'], ['remove', 'Rimuovi'], ['remove_all', 'Rimuovi tutti']] : [['set', 'Imposta'], ['clear', 'Svuota']]);
 const noValue = a => a.mode === 'clear' || a.mode === 'remove_all';
@@ -712,7 +718,7 @@ function drawActs() {
     let val;
     if (noValue(a)) val = '<span class="muted" style="padding:6px 2px">–</span>';
     else if (a.field.startsWith('exclude_')) val = `<select data-ai="${i}" data-k="value"><option value="true" selected>Sì</option></select>`;
-    else val = `<input type="text" data-ai="${i}" data-k="value" value="${esc(a.value ?? '')}" ${a.field === 'tags' ? 'list="dl-tags"' : ''} placeholder="${esc(a.mode === 'remove' ? 'tag da togliere, separati da virgola' : def.hint)}">`;
+    else val = `<div class="valcell"><input type="text" data-ai="${i}" data-k="value" value="${esc(a.value ?? '')}" ${a.field === 'tags' ? 'list="dl-tags"' : ''} placeholder="${esc(a.mode === 'remove' ? 'tag da togliere, separati da virgola' : def.hint)}">${a.mode === 'remove' ? '' : `<select data-ai="${i}" data-k="insert" aria-label="Inserisci il valore di una colonna">${INSERT_OPTS}</select>`}</div>`;
     return `<div class="erow a"><select data-ai="${i}" data-k="field">${ACT_OPTS.replace(`value="${a.field}"`, `value="${a.field}" selected`)}</select><select data-ai="${i}" data-k="mode">${modes}</select>${val}<button class="btn sm danger" data-adel="${i}" aria-label="Rimuovi">✕</button></div>`;
   }).join('') || '<div class="hint">Aggiungi almeno un valore da assegnare.</div>') + dl;
 }
@@ -746,6 +752,10 @@ $('dActs').addEventListener('input', onActEdit); $('dActs').addEventListener('ch
 function onActEdit(e) {
   const i = e.target.dataset.ai; if (i === undefined) return;
   const a = S.editing.actions[i], k = e.target.dataset.k;
+  if (k === 'insert') {
+    if (e.type === 'change' && e.target.value) { a.value = (a.value || '') + '{' + e.target.value + '}'; drawActs(); updateMatch(); }
+    return;
+  }
   a[k] = e.target.value;
   if (e.type === 'change') {
     if (k === 'field') { a.mode = defMode(a.field); if (a.field.startsWith('exclude_')) a.value = 'true'; drawActs(); }
