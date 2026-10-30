@@ -270,6 +270,7 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
 <div id="menuHost"></div>
 <div id="toastHost"></div>
 
+<!--CATALOG-DATA-->
 <script>
 /*ENGINE*/
 </script>
@@ -339,10 +340,17 @@ async function load() {
   const step = { name: 'avvio' };
   try {
     step.name = 'lettura dei dati';
-    const meta = await getJson('data/meta.json');
+    let meta, parts = [];
+    const embedded = document.getElementById('catalog-data');
+    if (embedded) {
+      const d = JSON.parse(embedded.textContent);
+      meta = d.meta; parts = d.shards;
+      embedded.textContent = '';
+    } else {
+      meta = await getJson('data/meta.json');
+      for (let i = 0; i < meta.shards; i++) parts.push(await getJson(`data/catalog-${i}.json`));
+    }
     S.meta = meta;
-    const parts = [];
-    for (let i = 0; i < meta.shards; i++) parts.push(await getJson(`data/catalog-${i}.json`));
     step.name = 'preparazione della tabella';
     const recs = [];
     for (const p of parts) for (const row of p.rows) {

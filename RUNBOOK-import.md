@@ -11,10 +11,11 @@ App (artifact): https://claude.ai/artifact/4c3xE1jNR1PF7LyUY6EuPh
 3. Controlla che il CSV abbia almeno 1000 righe. Se no, FERMATI senza pubblicare nulla e riferisci l'errore.
 4. `scripts/snapshot.sh data/export.csv` (salva la copia sul branch `catalog`, push forzato, senza storia).
 5. `node scripts/build.mjs --only artifact` e poi `node scripts/make-page.mjs`
-6. Pubblica l'app: tool `Artifact` con `url` dell'artifact, `file_path` = `artifact/index.html`,
-   `files` = `data/meta.json`, `data/catalog-0.json`, `data/catalog-1.json`, `data/catalog-2.json` (sorgenti in `artifact/data/`; il numero di shard e' in `artifact/data/meta.json`).
-   Non passare `capabilities` (restano quelle gia' impostate).
-7. Se `artifact/index.html` o `scripts/` sono cambiati rispetto a git: `git add scripts artifact/index.template.html artifact/index.html && git commit && git push origin main`.
+   (genera `artifact/index.html` con il catalogo INCORPORATO nella pagina, circa 12 MB: Safari rifiuta con 403 i file dati separati).
+6. Pubblica l'app: tool `Artifact` con `url` dell'artifact e `file_path` = `artifact/index.html`.
+   NON passare `files` e NON passare `capabilities` (restano quelle gia' impostate). Il limite della pagina e' 16 MB: se `artifact/index.html` supera 15 MB, FERMATI e riferisci.
+7. Se `scripts/`, `artifact/index.template.html` o i RUNBOOK sono cambiati: `git add scripts artifact/index.template.html RUNBOOK*.md && git commit && git push origin main`.
+   `artifact/index.html` e `artifact/data/` sono generati e ignorati da git: non committarli.
 8. Riporta: righe importate e ora della copia (data/snapshot.json).
 
 Note: limite API 30 richieste/minuto. Non committare `data/`.
