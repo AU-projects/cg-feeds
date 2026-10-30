@@ -231,6 +231,8 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
           <label class="check"><input type="checkbox" id="sOos"> Includi i prodotti esauriti</label>
           <label class="check"><input type="checkbox" id="sPriv"> Includi i prodotti privati</label>
           <label class="check"><input type="checkbox" id="sTitleCond"> Aggiungi le condizioni (es. [NM/VG+]) al titolo dei prodotti usati</label>
+          <div class="field"><label for="sIdMode">Una riga nei feed per…</label><select id="sIdMode"><option value="item">Ogni disco (id = numero della pagina prodotto, come oggi sul sito)</option><option value="listing">Ogni singola copia (id = codice dell’esemplare)</option></select></div>
+          <div class="hint" style="margin-top:-6px">Con «ogni disco», se ci sono più copie viene inviata la più economica (a parità, la migliore condizione).</div>
           <div class="field"><label for="sMetaPre">Preordini nel feed Meta</label><select id="sMetaPre"><option value="in stock">Inviali come «in stock»</option><option value="out of stock">Inviali come «out of stock»</option><option value="exclude">Escludili dal feed Meta</option></select></div>
           <div class="hint" style="margin-top:-6px">Meta accetta solo «in stock» e «out of stock». Google continua a ricevere «preorder».</div>
           <label class="check"><input type="checkbox" id="sMetaQty"> Invia a Meta la quantità (solo se vendi con checkout su Facebook o Instagram)</label>
@@ -404,6 +406,13 @@ function recompute() {
     r.f_avail = AVAIL[f.availability] || f.availability; r.f_cat = f.google_product_category; r.f_ptype = f.product_type;
     r.f_google = feedStatus(r, o, st, 'google') || '✓';
     r.f_meta = feedStatus(r, o, st, 'meta') || '✓';
+  }
+  if (st.feedIdMode !== 'listing') {
+    for (const [key, ch] of [['f_google', 'google'], ['f_meta', 'meta']]) {
+      const groups = new Map();
+      for (const r of S.recs) if (r[key] === '✓') { const k = r.item_id || r.id; (groups.get(k) || groups.set(k, []).get(k)).push({ r, o: r.$o }); }
+      for (const list of groups.values()) if (list.length > 1) { const best = pickRep(list); for (const c of list) if (c !== best) c.r[key] = 'altra copia inviata'; }
+    }
   }
   buildFacets();
   const tl = new Set(); for (const r of S.recs) if (r.tags) r.tags.split(', ').forEach(t => tl.add(t));
@@ -903,7 +912,7 @@ function bindSetting(id, key, kind) {
     saveSettings(); renderFeed(true); scheduleRecompute();
   });
 }
-[['sCur', 'currency'], ['sLang', 'lang'], ['sMetaPre', 'metaPreorder'], ['sCatRel', 'googleCategoryRelease'], ['sCatBook', 'googleCategoryBook'], ['sCatProd', 'googleCategoryProduct'], ['feedBase', 'feedBase']].forEach(([i, k]) => bindSetting(i, k));
+[['sCur', 'currency'], ['sLang', 'lang'], ['sMetaPre', 'metaPreorder'], ['sIdMode', 'feedIdMode'], ['sCatRel', 'googleCategoryRelease'], ['sCatBook', 'googleCategoryBook'], ['sCatProd', 'googleCategoryProduct'], ['feedBase', 'feedBase']].forEach(([i, k]) => bindSetting(i, k));
 [['sOos', 'includeOutOfStock'], ['sPriv', 'includePrivate'], ['sTitleCond', 'titleCondition'], ['sMetaQty', 'metaQuantity'], ['sGroup', 'sendItemGroupId']].forEach(([i, k]) => bindSetting(i, k, 'check'));
 document.addEventListener('click', e => {
   const id = e.target.dataset && e.target.dataset.copy; if (!id) return;
@@ -915,7 +924,7 @@ let pvTimer = 0;
 function renderFeed(soft) {
   const s = S.settings;
   const set = (id, v) => { const el = $(id); if (document.activeElement !== el) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? ''; } };
-  set('sCur', s.currency); set('sLang', s.lang); set('sMetaPre', s.metaPreorder); set('sMetaQty', s.metaQuantity); set('sGroup', s.sendItemGroupId); set('sOos', s.includeOutOfStock); set('sPriv', s.includePrivate); set('sTitleCond', s.titleCondition);
+  set('sCur', s.currency); set('sLang', s.lang); set('sMetaPre', s.metaPreorder); set('sIdMode', s.feedIdMode); set('sMetaQty', s.metaQuantity); set('sGroup', s.sendItemGroupId); set('sOos', s.includeOutOfStock); set('sPriv', s.includePrivate); set('sTitleCond', s.titleCondition);
   set('sCatRel', s.googleCategoryRelease); set('sCatBook', s.googleCategoryBook); set('sCatProd', s.googleCategoryProduct); set('feedBase', s.feedBase);
   const base = (s.feedBase || '').replace(/\/?$/, '/');
   $('uGoogle').value = base + 'google.tsv'; $('uMeta').value = base + 'meta.csv';
@@ -925,17 +934,20 @@ function renderFeed(soft) {
 function drawFeedCounts() {
   if (!$('v-feed').classList.contains('on')) return;
   const rules = activeRules();
-  let g = 0, m = 0, oos = 0, eg = 0, em = 0;
+  let g = 0, m = 0, oos = 0, eg = 0, em = 0, dup = 0;
   const sample = [], q = $('pvSearch').value.trim().toLowerCase();
   for (const r of S.recs) {
     const o = applyRules(r, rules);
     const a = feedRow(r, o, S.settings, 'google'), b = feedRow(r, o, S.settings, 'meta');
-    if (a) g++; if (b) m++;
+    if (r.f_google === '✓') g++; if (r.f_meta === '✓') m++; if (r.f_google === 'altra copia inviata') dup++;
     if (r.status === 'published' && !(r.stock > 0)) oos++;
     if (String(o.exclude_google) === 'true') eg++; if (String(o.exclude_meta) === 'true') em++;
-    if ((a || b) && sample.length < 2 && (!q || r.$s.includes(q))) sample.push([a, b, o]);
+    if ((a || b) && sample.length < 2 && (!q || r.$s.includes(q))) {
+      if (S.settings.feedIdMode !== 'listing') { if (a) a.id = r.item_id || a.id; if (b) b.id = r.item_id || b.id; }
+      sample.push([a, b, o]);
+    }
   }
-  $('feedCounts').innerHTML = `Google: <b>${nf.format(g)}</b> prodotti · Meta: <b>${nf.format(m)}</b> prodotti. Esauriti ${S.settings.includeOutOfStock ? 'inclusi' : 'esclusi'}: ${nf.format(oos)}. Esclusi da regola: Google ${nf.format(eg)}, Meta ${nf.format(em)}.`;
+  $('feedCounts').innerHTML = `Google: <b>${nf.format(g)}</b> prodotti · Meta: <b>${nf.format(m)}</b> prodotti. Esauriti ${S.settings.includeOutOfStock ? 'inclusi' : 'esclusi'}: ${nf.format(oos)}. Esclusi da regola: Google ${nf.format(eg)}, Meta ${nf.format(em)}.${dup ? ` Copie non inviate perché c’è già un’altra copia dello stesso disco: ${nf.format(dup)}.` : ''}`;
   const OVR = { title: 'title_feed', description: 'description_feed', brand: 'brand', condition: 'condition_feed', price: 'price_feed', google_product_category: 'google_category', product_type: 'product_type_feed' };
   const kv = (row, o) => row ? `<dl class="kv">${Object.entries(row).filter(([k, v]) => v !== '' && v != null && k[0] !== '_').map(([k, v]) => {
     const key = OVR[k] || (k.startsWith('custom_label_') ? k : '');

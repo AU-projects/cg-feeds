@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS = {
   // Meta only supports "in stock" and "out of stock" for availability.
   metaPreorder: 'in stock', // in stock | out of stock | exclude
   metaQuantity: false, // quantity_to_sell_on_facebook: only useful with Facebook/Instagram checkout
+  feedIdMode: 'item', // item: one row per record, id = product page number (as the shop's own Meta feed) | listing: one row per copy
   sendItemGroupId: false, // item_group_id is for variants (size, colour...), not for copies in different condition
 };
 
@@ -47,6 +48,31 @@ export function defaultDescription(r, s) {
   } else if (!r.second_hand) parts.push(t.newItem);
   if (r.comments) parts.push(`${t.notes}: ${r.comments}`);
   return clean(parts.map(p => p.replace(/[.\s]+$/, '')).join('. ') + '.').slice(0, 4900);
+}
+
+// ---- one row per record (item) instead of one per copy ----
+const CONDRANK = { Sealed: 0, M: 1, NM: 2, 'VG+': 3, VG: 4, 'G+': 5, G: 6, F: 7, P: 8 };
+export function effPrice(r, o) { return o.price_feed !== undefined && o.price_feed !== '' ? Number(o.price_feed) : r.price; }
+function better(b, a) {
+  const pa = effPrice(a.r, a.o), pb = effPrice(b.r, b.o);
+  if (pb !== pa) return pb < pa;
+  const ca = CONDRANK[a.r.media] ?? 9, cb = CONDRANK[b.r.media] ?? 9;
+  if (cb !== ca) return cb < ca;
+  if (b.r.stock !== a.r.stock) return b.r.stock > a.r.stock;
+  return b.r.id < a.r.id;
+}
+// items: [{ r, o }] copies of the same record; picks the cheapest, then the best condition.
+export function pickRep(items) { return items.reduce((a, b) => (better(b, a) ? b : a)); }
+// cands: [{ r, o, row }] of eligible copies -> feed rows, one per record, id = item id.
+export function collapseByItem(cands) {
+  const groups = new Map();
+  for (const c of cands) { const k = c.r.item_id || c.r.id; (groups.get(k) || groups.set(k, []).get(k)).push(c); }
+  return [...groups.entries()].map(([k, list]) => {
+    const best = list.length > 1 ? pickRep(list) : list[0];
+    const row = { ...best.row, id: k };
+    if ('quantity_to_sell_on_facebook' in row) row.quantity_to_sell_on_facebook = list.reduce((n, c) => n + Math.max(0, c.r.stock || 0), 0);
+    return row;
+  });
 }
 
 // Why a listing is left out of a feed ('' when it is included).

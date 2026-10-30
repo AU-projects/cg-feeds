@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { parseCsv, toCsv } from './lib/csv.mjs';
 import { COLUMNS, normalize, applyRules, sortRules, linkToSlug } from './lib/model.mjs';
-import { DEFAULT_SETTINGS, feedRow, GOOGLE_COLS, metaCols, toTsv } from './lib/feeds.mjs';
+import { DEFAULT_SETTINGS, feedRow, GOOGLE_COLS, metaCols, toTsv, collapseByItem } from './lib/feeds.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const csvPath = arg('csv', 'data/export.csv');
@@ -17,13 +17,17 @@ const settings = { ...DEFAULT_SETTINGS, ...readJson(arg('settings', 'data/settin
 const recs = parseCsv(readFileSync(csvPath, 'utf8')).filter(r => r.listing_id).map(normalize);
 console.error(recs.length, 'listings,', rules.length, 'rules');
 
-const google = [], meta = [];
+let google = [], meta = [];
 if (only !== 'artifact') {
+  const cg = [], cm = [];
   for (const r of recs) {
     const o = applyRules(r, rules);
-    const g = feedRow(r, o, settings, 'google'); if (g) google.push(g);
-    const m = feedRow(r, o, settings, 'meta'); if (m) meta.push(m);
+    const g = feedRow(r, o, settings, 'google'); if (g) cg.push({ r, o, row: g });
+    const m = feedRow(r, o, settings, 'meta'); if (m) cm.push({ r, o, row: m });
   }
+  const byItem = settings.feedIdMode !== 'listing';
+  google = byItem ? collapseByItem(cg) : cg.map(c => c.row);
+  meta = byItem ? collapseByItem(cm) : cm.map(c => c.row);
   writeFileSync('google.tsv', toTsv(GOOGLE_COLS, google));
   writeFileSync('meta.csv', toCsv(metaCols(settings), meta));
   const generated = new Date().toISOString();
