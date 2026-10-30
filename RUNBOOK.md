@@ -17,3 +17,8 @@ Se la sessione viene archiviata o eliminata i task smettono di funzionare. Per r
 1. Crea una nuova sessione con il repo AU-projects/cg-feeds collegato (accesso in scrittura).
 2. Ricrea i due task pianificati legati a quella sessione (persistent_session_id), con i prompt che richiamano RUNBOOK-import.md e RUNBOOK-feed.md.
 3. Aggiorna gli identificativi dei task in `artifact/index.template.html` (costante JOBS) e ripubblica l'app.
+
+## Orari mostrati nell'app
+La scheda Feed → Pianificazione mostra gli orari leggendoli dal documento `settings/schedule` del database dell'artifact
+(`{"import": {"cron": ...}, "feed": {"cron": ...}, "updatedAt": ...}`). La pagina non puo' leggere i task direttamente (connettore bloccato dall'organizzazione).
+Ogni volta che si cambia l'orario di un task con `update_trigger`, aggiorna anche quel documento con ArtifactData (action `update`, collection `settings`, doc `schedule`), usando la stessa espressione cron e `updatedAt` = ora attuale.

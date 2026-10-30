@@ -947,8 +947,8 @@ $('pvSearch').addEventListener('input', () => { clearTimeout(pvTimer); pvTimer =
 /* ---------- schedule (Claude scheduled tasks, via the Claude Code Remote connector) ---------- */
 const CONNECTOR = 'Claude Code Remote';
 const JOBS = [
-  { key: 'import', id: 'trig_01QqCRZPwLcLmwsmvg1uTzMB', title: 'Importa il catalogo da Common Ground', desc: 'Scarica il catalogo aggiornato e rinnova la tabella di questa app. Non modifica i feed pubblici.', ask: 'Importa il catalogo ogni 6 ore' },
-  { key: 'feed', id: 'trig_01FDcEU3aCdyKZPg6EtXBzQF', title: 'Aggiorna i feed al link', desc: 'Applica le automazioni all’ultimo catalogo importato e pubblica google.tsv e meta.csv.', ask: 'Aggiorna i feed ogni giorno alle 08:15' },
+  { key: 'import', id: 'trig_01QqCRZPwLcLmwsmvg1uTzMB', title: 'Importa il catalogo da Common Ground', desc: 'Scarica il catalogo aggiornato e rinnova la tabella di questa app. Non modifica i feed pubblici.', ask: 'Importa il catalogo ogni 6 ore', cron: 'CRON_TZ=Europe/Rome 17 3 * * *' },
+  { key: 'feed', id: 'trig_01FDcEU3aCdyKZPg6EtXBzQF', title: 'Aggiorna i feed al link', desc: 'Applica le automazioni all’ultimo catalogo importato e pubblica google.tsv e meta.csv.', ask: 'Aggiorna i feed ogni giorno alle 08:15', cron: 'CRON_TZ=Europe/Rome 17 5 * * *' },
 ];
 const FREQS = [['h1', 'Ogni ora'], ['h2', 'Ogni 2 ore'], ['h3', 'Ogni 3 ore'], ['h4', 'Ogni 4 ore'], ['h6', 'Ogni 6 ore'], ['h12', 'Ogni 12 ore'], ['daily', 'Ogni giorno'], ['days', 'Nei giorni scelti']];
 const DAYNAMES = [[1, 'Lun'], [2, 'Mar'], [3, 'Mer'], [4, 'Gio'], [5, 'Ven'], [6, 'Sab'], [0, 'Dom']];
@@ -1028,11 +1028,51 @@ async function loadSched() {
   }));
   renderSched();
 }
+function romeParts(date) {
+  const f = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const p = Object.fromEntries(f.formatToParts(date).map(x => [x.type, x.value]));
+  return { y: +p.year, m: +p.month, d: +p.day, h: +p.hour, min: +p.minute };
+}
+function romeToDate(y, m, d, h, min) {
+  const want = Date.UTC(y, m - 1, d, h, min);
+  let t = want;
+  for (let i = 0; i < 2; i++) { const p = romeParts(new Date(t)); t += want - Date.UTC(p.y, p.m - 1, p.d, p.h, p.min); }
+  return new Date(t);
+}
+function nextRun(ui) {
+  if (ui.mode !== 'daily' && ui.mode !== 'days') return null;
+  const [h, m] = ui.time.split(':').map(Number), now = new Date(), b = romeParts(now);
+  for (let i = 0; i < 9; i++) {
+    const cand = romeToDate(b.y, b.m, b.d + i, h, m);
+    const dow = new Date(Date.UTC(b.y, b.m - 1, b.d + i)).getUTCDay();
+    if (cand > now && (ui.mode === 'daily' || ui.days.includes(dow))) return cand;
+  }
+  return null;
+}
+const fmtLong = d => new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', dateStyle: 'full', timeStyle: 'short' }).format(d);
+function roCard(j, st) {
+  const live = st.known && st.cron;
+  const info = S.schedInfo && S.schedInfo[j.key] && S.schedInfo[j.key].cron;
+  const cron = live ? st.cron : (info || j.cron);
+  const u = parseCron(cron);
+  const nr = st.enabled === false ? null : nextRun(u);
+  const lastTxt = st.last ? `${{ SUCCEEDED: 'riuscita', FAILED: 'fallita' }[st.last.status] || esc(st.last.status)} il ${fmtRome(st.last.fired_at)}` : '';
+  const src = live ? '' : `<div class="hint" style="margin:0">Orario registrato da Claude${S.schedInfo && S.schedInfo.updatedAt ? ' il ' + fmtRome(S.schedInfo.updatedAt) : ''}. Se venisse cambiato altrove, qui potrebbe non risultare.</div>`;
+  return `<div class="panel sched-card" data-job="${j.key}">
+    <div><h3>${esc(j.title)}</h3><div class="hint" style="margin:2px 0 0">${esc(j.desc)}</div></div>
+    <div>Impostato: <b>${esc(describeUi(u, cron))}</b> <span class="muted">(ora italiana)${st.enabled === false ? ' · in pausa' : ''}</span></div>
+    <div>Prossima esecuzione: <b>${nr ? esc(fmtLong(nr)) : (u.mode === 'custom' ? 'vedi l’espressione sopra' : 'a ogni intervallo indicato')}</b></div>
+    ${lastTxt ? `<div class="hint" style="margin:0">Ultima: ${lastTxt}</div>` : ''}
+    ${src}
+    <div class="hint" style="margin:0">Per cambiarlo o per eseguirlo subito, scrivi a Claude, per esempio: «${esc(j.ask)}»</div>
+    <div class="row2"><button class="btn sm" data-sch="copy" data-text="${esc(j.ask)}">Copia la frase</button></div>
+  </div>`;
+}
 function renderSched() {
   const host = $('schedCards');
   if (!host) return;
   if (!mcpNs) {
-    host.innerHTML = '<div class="hint">Gli orari non sono modificabili da questa vista. Scrivi a Claude, ad esempio «importa il catalogo ogni 6 ore e aggiorna i feed alle 8:15».</div>';
+    host.innerHTML = JOBS.map(j => roCard(j, S.sched[j.key] || (S.sched[j.key] = { ui: parseCron('') }))).join('');
     return;
   }
   const anyRO = JOBS.some(j => (S.sched[j.key] || {}).readonly || (S.sched[j.key] || {}).writeBlocked);
@@ -1040,16 +1080,7 @@ function renderSched() {
   host.innerHTML = banner + JOBS.map(j => {
     const st = S.sched[j.key] || (S.sched[j.key] = { ui: parseCron('') });
     const u = st.ui;
-    if (st.readonly || st.writeBlocked) {
-      const now = st.known ? `<b>${esc(describeUi(parseCron(st.cron), st.cron))}</b>${st.enabled === false ? ' (in pausa)' : ''}` : 'non leggibile da questa vista';
-      const when = st.known ? `<div class="hint" style="margin:0">Prossima: <b>${st.enabled === false ? 'in pausa' : fmtRome(st.next)}</b> · Ultima: ${st.last ? `${{ SUCCEEDED: 'riuscita', FAILED: 'fallita' }[st.last.status] || esc(st.last.status)} il ${fmtRome(st.last.fired_at)}` : 'mai eseguita'}</div>` : '';
-      return `<div class="panel sched-card" data-job="${j.key}">
-        <div><h3>${esc(j.title)}</h3><div class="hint" style="margin:2px 0 0">${esc(j.desc)}</div></div>
-        <div>Orario attuale: ${now}</div>${when}
-        <div class="hint" style="margin:0">Per cambiarlo o per eseguirlo subito, scrivi a Claude, per esempio: «${esc(j.ask)}»</div>
-        <div class="row2"><button class="btn sm" data-sch="copy" data-text="${esc(j.ask)}">Copia la frase</button></div>
-      </div>`;
-    }
+    if (st.readonly || st.writeBlocked) return roCard(j, st);
     const modes = FREQS.map(([k, l]) => `<option value="${k}" ${u.mode === k ? 'selected' : ''}>${l}</option>`).join('') + (u.mode === 'custom' ? `<option value="custom" selected>Personalizzata (${esc(st.cron || '')})</option>` : '');
     const showTime = u.mode === 'daily' || u.mode === 'days';
     const lastTxt = st.last ? `${{ SUCCEEDED: 'riuscita', FAILED: 'fallita' }[st.last.status] || esc(st.last.status)} il ${fmtRome(st.last.fired_at)}` : 'mai eseguita';
@@ -1118,6 +1149,10 @@ async function connectDb() {
   db.collection('rules').onSnapshot(snap => {
     S.rules = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     scheduleRecompute(); if ($('v-regole').classList.contains('on')) renderRules(); if ($('v-feed').classList.contains('on')) renderFeed(true);
+  }, () => {});
+  db.doc('settings/schedule').onSnapshot(d => {
+    S.schedInfo = d.exists ? d.data() : null;
+    if ($('v-feed').classList.contains('on')) renderSched();
   }, () => {});
   db.doc('settings/main').onSnapshot(d => {
     if (d.exists) { S.settings = { ...S.settings, ...d.data() }; scheduleRecompute(); if ($('v-feed').classList.contains('on')) renderFeed(true); }
