@@ -695,10 +695,13 @@ addEventListener('hashchange', route);
 
 /* ---------- data loading ---------- */
 async function load() {
+  const step = { name: 'avvio' };
   try {
+    step.name = 'lettura dei dati';
     const meta = await (await fetch('data/meta.json')).json();
     S.meta = meta;
-    const parts = await Promise.all(Array.from({ length: meta.shards }, (_, i) => fetch(`data/catalog-${i}.json`).then(r => r.json())));
+    const parts = await Promise.all(Array.from({ length: meta.shards }, (_, i) => fetch(`data/catalog-${i}.json`).then(r => { if (!r.ok) throw new Error('catalog-' + i + ' HTTP ' + r.status); return r.json(); })));
+    step.name = 'preparazione della tabella';
     const recs = [];
     for (const p of parts) for (const row of p.rows) {
       const o = {}; p.cols.forEach((c, i) => { o[c] = row[i]; });
@@ -708,11 +711,14 @@ async function load() {
     }
     S.recs = recs;
     buildFacets();
+    step.name = 'calcolo di regole e feed';
     recompute();
     $('loading').hidden = true;
     renderStats();
   } catch (e) {
-    $('loading').textContent = 'Impossibile caricare il catalogo. Chiedi a Claude di aggiornare i dati.';
+    console.error('Caricamento catalogo, fase: ' + step.name, e);
+    $('loading').hidden = false;
+    $('loading').textContent = `Impossibile caricare il catalogo (${step.name}: ${e && e.message ? e.message : e}). Ricarica la pagina; se persiste, mandami questo messaggio.`;
   }
 }
 
