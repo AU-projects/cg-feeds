@@ -323,13 +323,26 @@ function route() {
 addEventListener('hashchange', route);
 
 /* ---------- data loading ---------- */
+async function getJson(path) {
+  let url = path;
+  try { url = new URL(path, document.baseURI).href; } catch (e) {}
+  let res;
+  try { res = await fetch(url); }
+  catch (e) { throw new Error(`${path}: richiesta non riuscita (${e && e.message}) da ${String(location.href).slice(0, 90)}`); }
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (e) {
+    throw new Error(`${path}: risposta non valida (HTTP ${res.status}, ${res.headers.get('content-type') || 'tipo sconosciuto'}, ${text.length} caratteri, inizia con «${text.slice(0, 40).replace(/\s+/g, ' ')}»; pagina ${String(location.href).slice(0, 90)})`);
+  }
+}
 async function load() {
   const step = { name: 'avvio' };
   try {
     step.name = 'lettura dei dati';
-    const meta = await (await fetch('data/meta.json')).json();
+    const meta = await getJson('data/meta.json');
     S.meta = meta;
-    const parts = await Promise.all(Array.from({ length: meta.shards }, (_, i) => fetch(`data/catalog-${i}.json`).then(r => { if (!r.ok) throw new Error('catalog-' + i + ' HTTP ' + r.status); return r.json(); })));
+    const parts = [];
+    for (let i = 0; i < meta.shards; i++) parts.push(await getJson(`data/catalog-${i}.json`));
     step.name = 'preparazione della tabella';
     const recs = [];
     for (const p of parts) for (const row of p.rows) {
