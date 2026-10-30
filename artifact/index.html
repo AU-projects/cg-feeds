@@ -527,6 +527,7 @@ const DEFAULT_SETTINGS = {
   googleCategoryRelease: 'Media > Music & Sound Recordings',
   googleCategoryBook: 'Media > Books',
   googleCategoryProduct: '',
+  defaultBrand: 'Kagoshima Records',
 };
 
 const T = {
@@ -600,7 +601,7 @@ function feedValues(r, o, s, channel, withDescription = true) {
     sale_price: onSale ? money(price, s.currency) : '',
     link: r._link,
     image_link: r._image,
-    brand: clean(o.brand) || r.label || r.artist || '',
+    brand: clean(o.brand) || r.label || r.manufacturer || r.artist || s.defaultBrand,
     gtin: r.gtin,
     mpn: r.catno,
     item_group_id: r.item_id,
