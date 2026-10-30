@@ -922,8 +922,8 @@ $('pvSearch').addEventListener('input', () => { clearTimeout(pvTimer); pvTimer =
 /* ---------- schedule (Claude scheduled tasks, via the Claude Code Remote connector) ---------- */
 const CONNECTOR = 'Claude Code Remote';
 const JOBS = [
-  { key: 'import', id: 'trig_014gz3diZf2swzso8nEWUVvH', title: 'Importa il catalogo da Common Ground', desc: 'Scarica il catalogo aggiornato e rinnova la tabella di questa app. Non modifica i feed pubblici.', ask: 'Importa il catalogo ogni 6 ore' },
-  { key: 'feed', id: 'trig_01A26ENQb24gPLm6aXXYgTDH', title: 'Aggiorna i feed al link', desc: 'Applica le automazioni all’ultimo catalogo importato e pubblica google.tsv e meta.csv.', ask: 'Aggiorna i feed ogni giorno alle 08:15' },
+  { key: 'import', id: 'trig_01QqCRZPwLcLmwsmvg1uTzMB', title: 'Importa il catalogo da Common Ground', desc: 'Scarica il catalogo aggiornato e rinnova la tabella di questa app. Non modifica i feed pubblici.', ask: 'Importa il catalogo ogni 6 ore' },
+  { key: 'feed', id: 'trig_01FDcEU3aCdyKZPg6EtXBzQF', title: 'Aggiorna i feed al link', desc: 'Applica le automazioni all’ultimo catalogo importato e pubblica google.tsv e meta.csv.', ask: 'Aggiorna i feed ogni giorno alle 08:15' },
 ];
 const FREQS = [['h1', 'Ogni ora'], ['h2', 'Ogni 2 ore'], ['h3', 'Ogni 3 ore'], ['h4', 'Ogni 4 ore'], ['h6', 'Ogni 6 ore'], ['h12', 'Ogni 12 ore'], ['daily', 'Ogni giorno'], ['days', 'Nei giorni scelti']];
 const DAYNAMES = [[1, 'Lun'], [2, 'Mar'], [3, 'Mer'], [4, 'Gio'], [5, 'Ven'], [6, 'Sab'], [0, 'Dom']];
