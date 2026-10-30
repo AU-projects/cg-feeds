@@ -364,6 +364,7 @@ async function load() {
     for (const p of parts) for (const row of p.rows) {
       const o = {}; p.cols.forEach((c, i) => { o[c] = row[i]; });
       o.link = slugToLink(o);
+      o._available = o.available;
       if (o.has_media) { o._link = o.link || 'https://…/pagina-prodotto'; o._image = 'https://…/immagine.jpg'; }
       o.$s = [o.title, o.artist, o.label, o.catno, o.id, o.gtin, o.item_id].join(' ').toLowerCase();
       recs.push(o);

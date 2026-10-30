@@ -41,8 +41,8 @@ if (only !== 'artifact') {
 // Catalog shards for the app: columnar JSON, no feed-only fields.
 // Feed-only fields reduced to what the page needs to decide eligibility and preview rows.
 if (only === 'feeds') process.exit(0);
-const keys = [...COLUMNS.map(c => c.key).filter(k => k !== 'link'), 'slug', 'has_media', '_imgBad', '_mediaFull', '_sleeveFull', '_available'];
-for (const r of recs) { r.slug = linkToSlug(r); r.has_media = r._link && r._image ? 1 : 0; if (!r.pre_order) r._available = ''; }
+const keys = [...COLUMNS.map(c => c.key).filter(k => k !== 'link'), 'slug', 'has_media', '_imgBad', '_mediaFull', '_sleeveFull'];
+for (const r of recs) { r.slug = linkToSlug(r); r.has_media = r._link && r._image ? 1 : 0 }
 const SHARD = 12000;
 mkdirSync('artifact/data', { recursive: true });
 const shards = Math.ceil(recs.length / SHARD);
