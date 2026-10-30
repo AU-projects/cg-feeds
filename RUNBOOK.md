@@ -3,7 +3,7 @@
 Due task separati, con orari scelti nella scheda Feed dell'app:
 
 - RUNBOOK-import.md: importa il catalogo da Common Ground e aggiorna l'app.
-- RUNBOOK-feed.md: applica le automazioni all'ultimo catalogo importato e pubblica i feed.
+- RUNBOOK-feed.md: scarica il catalogo, applica le automazioni e pubblica i feed.
 
 App: https://claude.ai/artifact/4c3xE1jNR1PF7LyUY6EuPh
 Feed: https://au-projects.github.io/cg-feeds/google.tsv  e  .../meta.csv
@@ -22,3 +22,6 @@ Se la sessione viene archiviata o eliminata i task smettono di funzionare. Per r
 La scheda Feed → Pianificazione mostra gli orari leggendoli dal documento `settings/schedule` del database dell'artifact
 (`{"import": {"cron": ...}, "feed": {"cron": ...}, "updatedAt": ...}`). La pagina non puo' leggere i task direttamente (connettore bloccato dall'organizzazione).
 Ogni volta che si cambia l'orario di un task con `update_trigger`, aggiorna anche quel documento con ArtifactData (action `update`, collection `settings`, doc `schedule`), usando la stessa espressione cron e `updatedAt` = ora attuale.
+
+## Dati riservati
+Il repo e' pubblico. Non committare mai il catalogo scaricato (costi, fornitori, note private, nomi dei collaboratori): nessun ramo e nessun file con l'export completo.

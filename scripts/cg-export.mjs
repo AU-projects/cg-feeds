@@ -5,6 +5,7 @@
 // is applied by the proxy, so the variable may be empty inside the sandbox).
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 
 const ENDPOINT = 'https://api-admin.common-ground.io/graphql';
 const out = process.argv[2] || 'data/export.csv';
@@ -37,4 +38,5 @@ if (status !== 'complete') throw new Error('export job timed out');
 const url = gql(`{ jobDownloadUrl(jobRef: "${job._id}") }`).jobDownloadUrl;
 const csv = execFileSync('curl', ['-sS', '--max-time', '300', url], { maxBuffer: 1 << 29 });
 writeFileSync(out, csv);
+writeFileSync(dirname(out) + '/snapshot.json', JSON.stringify({ at: new Date().toISOString() }) + '\n');
 console.error('saved', out, csv.length, 'bytes');
