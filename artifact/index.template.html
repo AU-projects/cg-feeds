@@ -86,6 +86,8 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px;
 .c.ovr { font-weight: 600; }
 .c.ovr::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ovr); margin-right: 6px; }
 .ok { color: var(--good); font-weight: 600; }
+.c a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.c a:hover { text-decoration: underline; }
 .no { color: var(--muted); font-size: 12px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--muted); align-items: center; }
 .legend i { display: inline-block; vertical-align: -1px; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; border: 1px solid var(--line); }
@@ -297,14 +299,14 @@ const FEEDCOLS = [
 ].map(c => ({ ...c, feed: true }));
 const ALLCOLS = [...COLUMNS, ...FEEDCOLS];
 const COLBY = Object.fromEntries(ALLCOLS.map(c => [c.key, c]));
-const DEFAULT_VISIBLE = ['title', 'artist', 'genre', 'media', 'sleeve', 'price', 'stock', 'f_google', 'f_meta', 'custom_label_0', 'tags'];
+const DEFAULT_VISIBLE = ['title', 'link', 'artist', 'genre', 'media', 'sleeve', 'price', 'stock', 'f_google', 'f_meta', 'custom_label_0', 'tags'];
 
 const S = {
   recs: [], view: [], filters: {}, q: '', sort: null, sel: new Set(), visible: new Set(DEFAULT_VISIBLE),
   rules: [], settings: { ...DEFAULT_SETTINGS, feedBase: 'https://au-projects.github.io/cg-feeds/' }, meta: null,
   db: null, facets: {}, calc: [], editing: null,
 };
-try { const v = JSON.parse(localStorage.getItem('fh.cols3') || 'null'); if (Array.isArray(v) && v.length) S.visible = new Set(v); } catch (e) {}
+try { const v = JSON.parse(localStorage.getItem('fh.cols4') || 'null'); if (Array.isArray(v) && v.length) S.visible = new Set(v); } catch (e) {}
 
 function toast(msg) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
@@ -355,7 +357,8 @@ async function load() {
     const recs = [];
     for (const p of parts) for (const row of p.rows) {
       const o = {}; p.cols.forEach((c, i) => { o[c] = row[i]; });
-      if (o.has_media) { o._link = 'https://…/pagina-prodotto'; o._image = 'https://…/immagine.jpg'; }
+      o.link = slugToLink(o);
+      if (o.has_media) { o._link = o.link || 'https://…/pagina-prodotto'; o._image = 'https://…/immagine.jpg'; }
       o.$s = [o.title, o.artist, o.label, o.catno, o.id, o.gtin, o.item_id].join(' ').toLowerCase();
       recs.push(o);
     }
@@ -506,6 +509,7 @@ function renderHead() {
 function cell(c, r) {
   const v = r[c.key];
   if (c.key === 'status') return `<span class="pill ${v === 'published' ? 'pub' : 'prv'}">${v === 'published' ? 'pubblicato' : esc(v)}</span>`;
+  if (c.key === 'link') return v ? `<a href="${esc(v)}" target="_blank" rel="noopener noreferrer" title="Apri la pagina del prodotto sul sito">Apri ↗</a>` : '';
   if (c.key === 'f_google' || c.key === 'f_meta') return v === '✓' ? '<span class="ok">✓</span>' : `<span class="no">${esc(v)}</span>`;
   if (c.key === 'f_price') return v == null ? '' : pf.format(v);
   if (c.key === 'tags') return v ? v.split(', ').map(t => `<span class="tag">${esc(t)}</span>`).join('') : '';
@@ -612,7 +616,7 @@ $('btnCols').addEventListener('click', e => {
   m.addEventListener('change', ev => {
     const k = ev.target.dataset.col; if (!k) return;
     if (ev.target.checked) S.visible.add(k); else S.visible.delete(k);
-    try { localStorage.setItem('fh.cols3', JSON.stringify([...S.visible])); } catch (x) {}
+    try { localStorage.setItem('fh.cols4', JSON.stringify([...S.visible])); } catch (x) {}
     renderHead(); renderRows();
   });
   host.replaceChildren(m);

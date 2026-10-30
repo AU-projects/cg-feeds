@@ -6,6 +6,7 @@ export const CUSTOM_LABELS = ['custom_label_0', 'custom_label_1', 'custom_label_
 // Columns shown in the app. type: text | num | bool | date. enum: dropdown filter.
 export const COLUMNS = [
   { key: 'title', label: 'Titolo', type: 'text', w: 260 },
+  { key: 'link', label: 'Pagina prodotto', type: 'text', w: 120, link: true },
   { key: 'artist', label: 'Artista', type: 'text', w: 200 },
   { key: 'label', label: 'Etichetta', type: 'text', w: 160 },
   { key: 'catno', label: 'Cat. n.', type: 'text', w: 110 },
@@ -145,6 +146,7 @@ export function normalize(r) {
     product_type: r.product_type || '',
     manufacturer: r.product_manufacturer || '',
     discogs_id: r.release_discogs_id || '',
+    link: r.item_eshop_link || '',
     _link: r.item_eshop_link,
     _image: r.item_image_link,
     _available: (r.listing_available_date || '').slice(0, 10),
@@ -152,6 +154,19 @@ export function normalize(r) {
     _mediaFull: r.listing_media_condition || '',
     _sleeveFull: r.listing_sleeve_condition || '',
   };
+}
+
+// ---------- product page link ----------
+// The page only receives the part of the address that cannot be rebuilt from the item.
+const SHOP = 'https://www.kagoshimarecords.com/';
+const TYPEPATH = { Release: 'release', Product: 'product', Book: 'book' };
+const linkBase = rec => `${SHOP}${TYPEPATH[rec.type] || ''}/${rec.item_id}/`;
+export function linkToSlug(rec) {
+  return rec.link && rec.link.startsWith(linkBase(rec)) ? rec.link.slice(linkBase(rec).length) : (rec.link || '');
+}
+export function slugToLink(rec) {
+  if (!rec.slug) return '';
+  return /^https?:/.test(rec.slug) ? rec.slug : linkBase(rec) + rec.slug;
 }
 
 // ---------- filters and rules ----------

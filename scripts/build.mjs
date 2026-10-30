@@ -3,7 +3,7 @@
 // Usage: node scripts/build.mjs [--csv data/export.csv] [--rules data/rules.json] [--settings data/settings.json]
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { parseCsv, toCsv } from './lib/csv.mjs';
-import { COLUMNS, normalize, applyRules, sortRules } from './lib/model.mjs';
+import { COLUMNS, normalize, applyRules, sortRules, linkToSlug } from './lib/model.mjs';
 import { DEFAULT_SETTINGS, feedRow, GOOGLE_COLS, META_COLS, toTsv } from './lib/feeds.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -37,8 +37,8 @@ if (only !== 'artifact') {
 // Catalog shards for the app: columnar JSON, no feed-only fields.
 // Feed-only fields reduced to what the page needs to decide eligibility and preview rows.
 if (only === 'feeds') process.exit(0);
-const keys = [...COLUMNS.map(c => c.key), 'has_media', '_mediaFull', '_sleeveFull', '_available'];
-for (const r of recs) { r.has_media = r._link && r._image ? 1 : 0; if (!r.pre_order) r._available = ''; }
+const keys = [...COLUMNS.map(c => c.key).filter(k => k !== 'link'), 'slug', 'has_media', '_mediaFull', '_sleeveFull', '_available'];
+for (const r of recs) { r.slug = linkToSlug(r); r.has_media = r._link && r._image ? 1 : 0; if (!r.pre_order) r._available = ''; }
 const SHARD = 12000;
 mkdirSync('artifact/data', { recursive: true });
 const shards = Math.ceil(recs.length / SHARD);
