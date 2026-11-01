@@ -133,7 +133,6 @@ export function feedValues(r, o, s, channel, withDescription = true) {
   for (let i = 0; i < 5; i++) {
     const label = clean(o['custom_label_' + i]);
     row['custom_label_' + i] = label.slice(0, 100);
-    if (!g) row['product_tags[' + i + ']'] = label.slice(0, 110); // Meta's version of custom labels
   }
   return row;
 }
@@ -149,13 +148,13 @@ export const GOOGLE_COLS = ['id', 'title', 'description', 'link', 'image_link', 
   'shipping_weight', 'custom_label_0', 'custom_label_1', 'custom_label_2', 'custom_label_3', 'custom_label_4'];
 
 // Columns of Meta's official catalog template (xlsx exported from Commerce Manager) that we fill.
-// Custom labels 0-4 are sent as product_tags[0-4], the field Meta uses to build product sets.
+// Custom labels 0-4 are sent as custom_label_0..4 in both feeds (used to build product sets).
 export function metaCols(s) {
   s = { ...DEFAULT_SETTINGS, ...s };
   return ['id', 'title', 'description', 'availability', 'condition', 'price', 'link', 'image_link', 'brand', 'google_product_category',
     ...(s.metaQuantity ? ['quantity_to_sell_on_facebook'] : []), 'sale_price',
     ...(s.sendItemGroupId ? ['item_group_id'] : []), 'shipping_weight', 'gtin',
-    'product_tags[0]', 'product_tags[1]', 'product_tags[2]', 'product_tags[3]', 'product_tags[4]'];
+    'custom_label_0', 'custom_label_1', 'custom_label_2', 'custom_label_3', 'custom_label_4'];
 }
 
 export function toTsv(cols, rows) {
