@@ -252,6 +252,14 @@ h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: -.005em; }
         <div class="legend" style="margin-bottom:8px"><span><i class="ovr"></i>Valore assegnato da una regola</span><span>Gli altri valori sono generati dal catalogo</span></div>
         <div class="cols2" id="pv"></div>
       </div>
+      <div class="panel">
+        <h2>Feed supplementare (solo etichette)</h2>
+        <div class="hint">File con solo l’<b>id</b> del prodotto e le etichette personalizzate calcolate dalle automazioni e dalle modifiche manuali. Si carica nel foglio Google collegato a Merchant Center come feed supplementare del feed di Common Ground. Non contiene prezzi, titoli, costi né fornitori.</div>
+        <div id="suppCounts" class="hint"></div>
+        <div class="legend" style="margin-bottom:8px"><span>Per caricarlo nel foglio: File → Importa → Carica → «Sostituisci il foglio corrente», e togli la spunta «Converti testo in numeri, date e formule», altrimenti 2026-11 diventa una data.</span></div>
+        <pre id="suppPreview" class="hint" style="white-space:pre;overflow:auto;margin:0 0 10px"></pre>
+        <button class="btn primary" id="btnSupp" type="button">Scarica il CSV</button>
+      </div>
     </div>
   </section>
 </main>
@@ -958,8 +966,43 @@ function renderFeed(soft) {
   $('genInfo').innerHTML = S.meta ? `<dt>catalogo</dt><dd>${new Date(S.meta.generated).toLocaleString('it-IT')}</dd><dt>listing</dt><dd>${nf.format(S.meta.count)}</dd><dt>regole</dt><dd>${S.rules.filter(r => r.enabled !== false).length} attive</dd>` : '';
   clearTimeout(pvTimer); pvTimer = setTimeout(drawFeedCounts, soft ? 250 : 0);
 }
+/* Supplemental feed: one row per product that has at least one custom label. Rows for ids that are not
+   in the primary feed are ignored by Merchant Center, so no eligibility check beyond published and in stock. */
+function suppData() {
+  const st = S.settings, groups = new Map();
+  for (const r of S.recs) {
+    if (r.status !== 'published' && !(st.includePrivate && r.status === 'private')) continue;
+    if (!st.includeOutOfStock && !(r.stock > 0)) continue;
+    const k = st.feedIdMode === 'listing' ? r.id : (r.item_id || r.id);
+    (groups.get(k) || groups.set(k, []).get(k)).push({ r, o: r.$o || {} });
+  }
+  const all = [];
+  for (const [id, list] of groups) {
+    const best = list.length > 1 ? pickRep(list) : list[0];
+    const row = { id };
+    let any = false;
+    for (const k of CUSTOM_LABELS) { row[k] = String(best.r[k] || '').trim().slice(0, 100); if (row[k]) any = true; }
+    if (any) all.push(row);
+  }
+  const cols = ['id', ...CUSTOM_LABELS.filter(k => all.some(r => r[k]))];
+  return { rows: all, cols, products: groups.size };
+}
+function drawSupp() {
+  const { rows, cols, products } = suppData();
+  const per = cols.slice(1).map(k => `${k}: <b>${nf.format(rows.filter(r => r[k]).length)}</b>`).join(' · ');
+  $('suppCounts').innerHTML = `Righe nel file: <b>${nf.format(rows.length)}</b> su ${nf.format(products)} prodotti pubblicati e disponibili.${per ? ' ' + per : ' Nessuna etichetta assegnata dalle automazioni.'}`;
+  $('suppPreview').textContent = rows.length ? [cols.join(','), ...rows.slice(0, 6).map(r => cols.map(c => r[c]).join(','))].join('\n') : '';
+  $('btnSupp').disabled = !rows.length;
+}
+$('btnSupp').addEventListener('click', async () => {
+  const dl = await claude.use('downloads');
+  if (!dl) { toast('Download non disponibile in questa vista'); return; }
+  const { rows, cols } = suppData();
+  try { await dl.save({ filename: 'feed-supplementare.csv', data: toCsv(cols, rows) }); toast('File salvato'); } catch (e) { if (e && e.code !== 'declined') toast('Download non riuscito'); }
+});
 function drawFeedCounts() {
   if (!$('v-feed').classList.contains('on')) return;
+  drawSupp();
   const rules = activeRules();
   let g = 0, m = 0, oos = 0, eg = 0, em = 0, dup = 0;
   const sample = [], q = $('pvSearch').value.trim().toLowerCase();
